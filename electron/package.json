@@ -1,0 +1,52 @@
+{
+  "name": "rabbit-ai-widget",
+  "productName": "RabbitAI",
+  "version": "1.0.0",
+  "description": "귀여운 토끼 AI 데스크톱 위젯 - 실시간 팩트체크, 날씨, 음성 답변",
+  "main": "src/main.js",
+  "author": "sanyang202413",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.sanyang.rabbitai",
+    "productName": "RabbitAI",
+    "asar": true,
+    "publish": null,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "RabbitAI 토끼비서"
+    }
+  }
+}
