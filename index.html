@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>계산기</title>
+<style>
+  :root {
+    --liner-yellow: #FFF200;
+    --liner-black: #1A1A1A;
+    --liner-gray: #F4F4F4;
+    --liner-border: #E5E5E5;
+    --liner-radius: 20px;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--liner-gray);
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
+      "Segoe UI", Roboto, sans-serif;
+    padding: 24px;
+  }
+
+  .calculator {
+    width: 100%;
+    max-width: 360px;
+    background: #FFFFFF;
+    border-radius: 28px;
+    border: 1px solid var(--liner-border);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 24px 0;
+  }
+
+  .brand .mark {
+    width: 18px;
+    height: 18px;
+    background: var(--liner-yellow);
+    border-radius: 5px;
+    border: 2px solid var(--liner-black);
+  }
+
+  .brand span {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--liner-black);
+  }
+
+  .display {
+    padding: 28px 24px 20px;
+    text-align: right;
+  }
+
+  .display .expression {
+    min-height: 20px;
+    font-size: 14px;
+    color: #9A9A9A;
+    font-weight: 500;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .display .result {
+    margin-top: 8px;
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--liner-black);
+    overflow-x: auto;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 0 20px 24px;
+  }
+
+  button {
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 600;
+    height: 64px;
+    border-radius: 16px;
+    background: var(--liner-gray);
+    color: var(--liner-black);
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+
+  button:active {
+    transform: scale(0.94);
+  }
+
+  button.op {
+    background: #FFFFFF;
+    border: 2px solid var(--liner-black);
+    color: var(--liner-black);
+  }
+
+  button.op:hover {
+    background: #FAFAFA;
+  }
+
+  button.func {
+    background: var(--liner-gray);
+    color: #6B6B6B;
+    font-size: 17px;
+  }
+
+  button.equals {
+    background: var(--liner-yellow);
+    color: var(--liner-black);
+    grid-column: span 2;
+  }
+
+  button.equals:hover {
+    filter: brightness(0.97);
+  }
+
+  button.zero {
+    grid-column: span 2;
+  }
+</style>
+</head>
+<body>
+  <div class="calculator">
+    <div class="brand">
+      <div class="mark"></div>
+      <span>CALCULATOR</span>
+    </div>
+
+    <div class="display">
+      <div class="expression" id="expression">&nbsp;</div>
+      <div class="result" id="result">0</div>
+    </div>
+
+    <div class="keys">
+      <button class="func" data-action="clear">AC</button>
+      <button class="func" data-action="sign">+/-</button>
+      <button class="func" data-action="percent">%</button>
+      <button class="op" data-action="divide">÷</button>
+
+      <button data-num="7">7</button>
+      <button data-num="8">8</button>
+      <button data-num="9">9</button>
+      <button class="op" data-action="multiply">×</button>
+
+      <button data-num="4">4</button>
+      <button data-num="5">5</button>
+      <button data-num="6">6</button>
+      <button class="op" data-action="subtract">−</button>
+
+      <button data-num="1">1</button>
+      <button data-num="2">2</button>
+      <button data-num="3">3</button>
+      <button class="op" data-action="add">+</button>
+
+      <button class="zero" data-num="0">0</button>
+      <button data-action="decimal">.</button>
+      <button class="equals" data-action="equals">=</button>
+    </div>
+  </div>
+
+<script>
+  const expressionEl = document.getElementById('expression');
+  const resultEl = document.getElementById('result');
+
+  let current = '0';
+  let previous = null;
+  let operator = null;
+  let justEvaluated = false;
+
+  const opSymbols = { add: '+', subtract: '−', multiply: '×', divide: '÷' };
+
+  function formatNumber(numStr) {
+    if (numStr === '' || numStr === '-') return numStr;
+    const [intPart, decPart] = numStr.split('.');
+    const formattedInt = new Intl.NumberFormat('en-US').format(Number(intPart));
+    return decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
+  }
+
+  function updateDisplay() {
+    resultEl.textContent = formatNumber(current);
+    if (operator && previous !== null) {
+      expressionEl.textContent = `${formatNumber(previous)} ${opSymbols[operator]}`;
+    } else {
+      expressionEl.textContent = ' ';
+    }
+  }
+
+  function inputNumber(num) {
+    if (justEvaluated) {
+      current = num === '.' ? '0.' : num;
+      justEvaluated = false;
+      updateDisplay();
+      return;
+    }
+    if (num === '.') {
+      if (current.includes('.')) return;
+      current = current === '' ? '0.' : current + '.';
+    } else {
+      current = current === '0' ? num : current + num;
+    }
+    updateDisplay();
+  }
+
+  function compute(a, b, op) {
+    a = parseFloat(a);
+    b = parseFloat(b);
+    switch (op) {
+      case 'add': return a + b;
+      case 'subtract': return a - b;
+      case 'multiply': return a * b;
+      case 'divide': return b === 0 ? 0 : a / b;
+      default: return b;
+    }
+  }
+
+  function trimResult(num) {
+    if (!isFinite(num)) return '0';
+    let str = num.toString();
+    if (str.length > 12) {
+      str = parseFloat(num.toPrecision(10)).toString();
+    }
+    return str;
+  }
+
+  function handleOperator(op) {
+    if (operator && previous !== null && !justEvaluated) {
+      const result = compute(previous, current, operator);
+      previous = trimResult(result);
+      current = previous;
+    } else {
+      previous = current;
+    }
+    operator = op;
+    justEvaluated = false;
+    current = '0';
+    updateDisplay();
+    expressionEl.textContent = `${formatNumber(previous)} ${opSymbols[op]}`;
+  }
+
+  function handleEquals() {
+    if (operator === null || previous === null) return;
+    const result = compute(previous, current, operator);
+    expressionEl.textContent = `${formatNumber(previous)} ${opSymbols[operator]} ${formatNumber(current)} =`;
+    current = trimResult(result);
+    previous = null;
+    operator = null;
+    justEvaluated = true;
+    resultEl.textContent = formatNumber(current);
+  }
+
+  function handleClear() {
+    current = '0';
+    previous = null;
+    operator = null;
+    justEvaluated = false;
+    updateDisplay();
+  }
+
+  function handleSign() {
+    if (current === '0') return;
+    current = current.startsWith('-') ? current.slice(1) : '-' + current;
+    updateDisplay();
+  }
+
+  function handlePercent() {
+    current = trimResult(parseFloat(current) / 100);
+    updateDisplay();
+  }
+
+  document.querySelectorAll('button[data-num]').forEach((btn) => {
+    btn.addEventListener('click', () => inputNumber(btn.dataset.num));
+  });
+
+  document.querySelectorAll('button[data-action]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      if (['add', 'subtract', 'multiply', 'divide'].includes(action)) {
+        handleOperator(action);
+      } else if (action === 'equals') {
+        handleEquals();
+      } else if (action === 'clear') {
+        handleClear();
+      } else if (action === 'sign') {
+        handleSign();
+      } else if (action === 'percent') {
+        handlePercent();
+      } else if (action === 'decimal') {
+        inputNumber('.');
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key >= '0' && e.key <= '9') inputNumber(e.key);
+    else if (e.key === '.') inputNumber('.');
+    else if (e.key === '+') handleOperator('add');
+    else if (e.key === '-') handleOperator('subtract');
+    else if (e.key === '*') handleOperator('multiply');
+    else if (e.key === '/') { e.preventDefault(); handleOperator('divide'); }
+    else if (e.key === 'Enter' || e.key === '=') handleEquals();
+    else if (e.key === 'Escape') handleClear();
+    else if (e.key === '%') handlePercent();
+  });
+
+  updateDisplay();
+</script>
+</body>
+</html>
