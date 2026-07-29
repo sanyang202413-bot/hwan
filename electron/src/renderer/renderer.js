@@ -1,7 +1,7 @@
 const chatLog = document.getElementById('chat-log');
 const composer = document.getElementById('composer');
 const input = document.getElementById('question-input');
-const avatar = document.getElementById('rabbit-avatar');
+const rabbitInner = document.getElementById('rabbit-inner');
 const infoText = document.getElementById('info-text');
 const btnRefreshInfo = document.getElementById('btn-refresh-info');
 const btnVoice = document.getElementById('btn-voice');
@@ -34,9 +34,19 @@ function addSources(sources) {
   chatLog.scrollTop = chatLog.scrollHeight;
 }
 
+let speakingFailSafe = null;
+
 function setSpeaking(isSpeaking) {
-  avatar.classList.toggle('speaking', isSpeaking);
+  rabbitInner.classList.toggle('talking', isSpeaking);
+  clearTimeout(speakingFailSafe);
+  if (isSpeaking) {
+    // 어떤 이유로든 tts:state 'end'가 유실될 경우를 대비한 최대 지속 시간
+    speakingFailSafe = setTimeout(() => rabbitInner.classList.remove('talking'), 20000);
+  }
 }
+
+// 메인 프로세스가 보내는 실제 SAPI 발화 시작/종료 이벤트로 입 모양 애니메이션을 구동한다.
+window.rabbitAPI.onTtsState((state) => setSpeaking(state === 'start'));
 
 async function refreshInfo() {
   infoText.textContent = '위치/날씨 불러오는 중...';
@@ -58,12 +68,7 @@ async function handleAsk(question) {
 
   addMessage(res.text, 'bot');
   if (res.ok) addSources(res.sources);
-
-  if (voiceEnabled) {
-    setSpeaking(true);
-    const estMs = Math.min(Math.max(res.text.length * 90, 1200), 12000);
-    setTimeout(() => setSpeaking(false), estMs);
-  }
+  // 실제 말하기 애니메이션은 main 프로세스의 tts:state 이벤트(onTtsState)로 트리거된다.
 }
 
 composer.addEventListener('submit', (e) => {

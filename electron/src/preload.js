@@ -12,4 +12,10 @@ contextBridge.exposeInMainWorld('rabbitAPI', {
   hideWindow: () => ipcRenderer.invoke('window:hide'),
   quitApp: () => ipcRenderer.invoke('window:quit'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+
+  onTtsState: (callback) => {
+    const listener = (_e, state) => callback(state);
+    ipcRenderer.on('tts:state', listener);
+    return () => ipcRenderer.removeListener('tts:state', listener);
+  },
 });

@@ -117,6 +117,15 @@ app.on('before-quit', () => {
   app.isQuitting = true;
 });
 
+// 실제 SAPI 발화 시작/종료를 렌더러에 알려 토끼의 입 모양 애니메이션을 음성 길이에 맞춘다.
+function speakAndNotify(text) {
+  if (!store.get('voiceEnabled') || !text) return;
+  speak(text, {
+    onStart: () => mainWindow && mainWindow.webContents.send('tts:state', 'start'),
+    onEnd: () => mainWindow && mainWindow.webContents.send('tts:state', 'end'),
+  });
+}
+
 // ---------- IPC handlers ----------
 
 ipcMain.handle('settings:get', () => ({
@@ -145,7 +154,7 @@ ipcMain.handle('ask:question', async (_e, question) => {
   }
   try {
     const result = await askGemini({ apiKey, question });
-    if (store.get('voiceEnabled')) speak(result.text);
+    speakAndNotify(result.text);
     return { ok: true, ...result };
   } catch (err) {
     return { ok: false, error: 'API_ERROR', text: `앗, 답변을 가져오는 중 문제가 생겼어요: ${err.message}` };
@@ -160,7 +169,7 @@ ipcMain.handle('info:weatherTime', async () => {
       Promise.resolve(getLocalTime(loc.timezone)),
     ]);
     const text = `지금 ${loc.city}는 ${time.hour}시 ${time.minute}분이고, 날씨는 ${weather.description}, 기온은 ${weather.temp}도예요.`;
-    if (store.get('voiceEnabled')) speak(text);
+    speakAndNotify(text);
     return { ok: true, location: loc, weather, time, text };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -175,7 +184,7 @@ ipcMain.handle('window:quit', () => {
 });
 
 ipcMain.handle('tts:speak', (_e, text) => {
-  if (store.get('voiceEnabled')) speak(text);
+  speakAndNotify(text);
 });
 
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url));
