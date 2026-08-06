@@ -194,7 +194,7 @@
     <div class="flower-emoji">💐</div>
     <h1>감성 플라워캠</h1>
     <p>웹캠으로 손동작을 인식해서<br/>실시간으로 예쁜 꽃 이펙트를 그려주는 앱이에요.</p>
-    <p class="hint">🌼 손끝을 움직이면 꽃이 피어나요 · 🌷 손을 펴면 흩날려요 · ✨ 얼굴은 자동으로 뽀샤시하게 · 📸 마음에 드는 순간엔 사진을 찍어보세요</p>
+    <p class="hint">🌼 손끝을 움직이면 꽃이 피어나요 · 🌷 손을 펴면 흩날려요 · 📸 마음에 드는 순간엔 사진을 찍어보세요</p>
     <button class="btn" id="startBtn">카메라 시작하기</button>
     <p id="startError" class="err"></p>
   </div>
@@ -206,7 +206,7 @@
 </div>
 
 <script type="module">
-import { FilesetResolver, HandLandmarker, FaceLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
 /* ---------------------------------------------------------------------- */
 /* 0. DOM refs                                                            */
@@ -518,136 +518,7 @@ function scatterAllParticles(){
 }
 
 /* ---------------------------------------------------------------------- */
-/* 3. Face auto-retouch (soft cool-toned skin + slimmer jawline)          */
-/* ---------------------------------------------------------------------- */
-// Ordered contour around the face silhouette (standard MediaPipe Face Mesh
-// "face oval"). Used both to find the jaw's extent for slimming and as a
-// soft clip mask so the effect blends into the untouched hair/neck/bg.
-const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
-
-const SKIN_BRIGHTEN = 1.14;
-const SKIN_CONTRAST = 0.94;
-const SKIN_SATURATE = 0.88;    // pulled down + brightened = the cool, pale "photogray" skin feel
-const SKIN_BLEND_ALPHA = 0.6;  // soft/bright pass is blended, not fully opaque, so eyes/lips keep some detail
-const SLIM_STRENGTH = 0.09;    // fraction of jaw width pulled inward at its peak
-const FACE_PATCH_MAX_DIM = 420; // working canvas is capped regardless of camera resolution (perf)
-
-const faceWorkCanvas = document.createElement('canvas');
-const faceWorkCtx = faceWorkCanvas.getContext('2d');
-const faceWarpCanvas = document.createElement('canvas');
-const faceWarpCtx = faceWarpCanvas.getContext('2d');
-const faceCompositeCanvas = document.createElement('canvas');
-const faceCompositeCtx = faceCompositeCanvas.getContext('2d');
-
-// Same cover-crop transform as toScreen(), but starting from source-video
-// pixel coordinates instead of normalized 0-1 landmark coordinates.
-function sourcePxToScreen(px, py){
-  return { x: px * coverScale - coverOffsetX, y: py * coverScale - coverOffsetY };
-}
-
-function drawFaceRetouch(ctx){
-  const lm = latestFaceLandmarks;
-  if (!lm || !videoW || !videoH) return;
-
-  const ovalPx = FACE_OVAL.map(i => ({ x: lm[i].x * videoW, y: lm[i].y * videoH }));
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  ovalPx.forEach(p => {
-    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
-  });
-
-  const marginX = (maxX - minX) * 0.18;
-  const marginY = (maxY - minY) * 0.18;
-  const cropX = Math.max(0, minX - marginX);
-  const cropY = Math.max(0, minY - marginY);
-  const cropW = Math.min(videoW, maxX + marginX) - cropX;
-  const cropH = Math.min(videoH, maxY + marginY) - cropY;
-  if (cropW < 20 || cropH < 20) return;
-
-  // 1) Grab a small closeup of just the face - cheap regardless of camera
-  // resolution, since only this small crop (not the full frame) gets read.
-  const workScale = Math.min(1, FACE_PATCH_MAX_DIM / Math.max(cropW, cropH));
-  const pw = Math.max(1, Math.round(cropW * workScale));
-  const ph = Math.max(1, Math.round(cropH * workScale));
-  faceWorkCanvas.width = pw; faceWorkCanvas.height = ph;
-  faceWarpCanvas.width = pw; faceWarpCanvas.height = ph;
-  faceWorkCtx.clearRect(0, 0, pw, ph);
-  faceWorkCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, pw, ph);
-
-  // 2) Slim: squeeze thin horizontal strips of the jaw/cheek area toward the
-  // face's vertical center axis, tapered to zero at the cheekbone line and
-  // again at the chin tip so it reads as a gentle narrowing, not a pinch.
-  const centerX = ((minX + maxX) / 2 - cropX) * workScale;
-  const jawTop = ph * 0.5;
-  const jawBottom = (maxY - cropY) * workScale;
-  faceWarpCtx.clearRect(0, 0, pw, ph);
-  const STRIPS = 28;
-  for (let i = 0; i < STRIPS; i++){
-    const y0 = Math.round((i / STRIPS) * ph);
-    const y1 = Math.round(((i + 1) / STRIPS) * ph);
-    const rowH = y1 - y0;
-    if (rowH <= 0) continue;
-    const yMid = (y0 + y1) / 2;
-    let squeeze = 0;
-    if (yMid >= jawTop && yMid <= jawBottom && jawBottom > jawTop){
-      const t = (yMid - jawTop) / (jawBottom - jawTop);
-      squeeze = Math.sin(t * Math.PI) * SLIM_STRENGTH;
-    }
-    const destW = pw * (1 - squeeze);
-    const dx = centerX - destW / 2;
-    faceWarpCtx.drawImage(faceWorkCanvas, 0, y0, pw, rowH, dx, y0, destW, rowH);
-  }
-
-  // 3) Composite onto a screen-sized scratch canvas: sharp slimmed layer at
-  // full opacity (so the shape change never looks like a double-exposed
-  // ghost), then a blurred/brightened/cool-toned layer blended on top for
-  // the soft "photogray" skin look.
-  const screenOval = ovalPx.map(p => sourcePxToScreen(p.x, p.y));
-  const dest = sourcePxToScreen(cropX, cropY);
-  const dw = cropW * coverScale;
-  const dh = cropH * coverScale;
-  const cw2 = Math.max(1, Math.round(dw));
-  const ch2 = Math.max(1, Math.round(dh));
-  faceCompositeCanvas.width = cw2;
-  faceCompositeCanvas.height = ch2;
-  faceCompositeCtx.clearRect(0, 0, cw2, ch2);
-
-  faceCompositeCtx.save();
-  const localOval = new Path2D();
-  screenOval.forEach((p, i) => {
-    const lx = p.x - dest.x, ly = p.y - dest.y;
-    if (i === 0) localOval.moveTo(lx, ly); else localOval.lineTo(lx, ly);
-  });
-  localOval.closePath();
-  faceCompositeCtx.clip(localOval);
-
-  faceCompositeCtx.drawImage(faceWarpCanvas, 0, 0, pw, ph, 0, 0, cw2, ch2);
-
-  const blurPx = Math.max(2, dw * 0.018);
-  faceCompositeCtx.filter = `blur(${blurPx}px) brightness(${SKIN_BRIGHTEN}) contrast(${SKIN_CONTRAST}) saturate(${SKIN_SATURATE})`;
-  faceCompositeCtx.globalAlpha = SKIN_BLEND_ALPHA;
-  faceCompositeCtx.drawImage(faceWarpCanvas, 0, 0, pw, ph, 0, 0, cw2, ch2);
-  faceCompositeCtx.filter = 'none';
-  faceCompositeCtx.globalAlpha = 1;
-  faceCompositeCtx.restore();
-
-  // 4) Feather the oval edge (radial fade) so the patch blends into the
-  // untouched hair/neck/background around it instead of a hard cutout.
-  faceCompositeCtx.save();
-  faceCompositeCtx.globalCompositeOperation = 'destination-in';
-  const cx = cw2 / 2, cy = ch2 / 2;
-  const grad = faceCompositeCtx.createRadialGradient(cx, cy, Math.min(cw2, ch2) * 0.32, cx, cy, Math.min(cw2, ch2) * 0.5);
-  grad.addColorStop(0, 'rgba(0,0,0,1)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  faceCompositeCtx.fillStyle = grad;
-  faceCompositeCtx.fillRect(0, 0, cw2, ch2);
-  faceCompositeCtx.restore();
-
-  ctx.drawImage(faceCompositeCanvas, dest.x, dest.y);
-}
-
-/* ---------------------------------------------------------------------- */
-/* 4. Hand gesture helpers                                                */
+/* 3. Hand gesture helpers                                                */
 /* ---------------------------------------------------------------------- */
 const handState = {}; // per-hand-slot open/closed + recent fingertip trail
 
@@ -711,10 +582,9 @@ function isHandOpen(lm){
 }
 
 /* ---------------------------------------------------------------------- */
-/* 5. MediaPipe setup                                                     */
+/* 4. MediaPipe setup                                                     */
 /* ---------------------------------------------------------------------- */
 let handLandmarker = null;
-let faceLandmarker = null;
 
 async function createLandmarkers(){
   const vision = await FilesetResolver.forVisionTasks(
@@ -737,22 +607,19 @@ async function createLandmarkers(){
     }
   }
 
+  // Face tracking (and the flower crown it powered) was removed, so hand
+  // tracking is now the only model running - it gets detected every single
+  // frame instead of sharing time with a second model, which is a big part
+  // of keeping things responsive even at higher camera resolutions.
   handLandmarker = await tryCreate(
     HandLandmarker,
     'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
     { numHands: 2 }
   );
-
-  // Face landmarks now power the auto skin-retouch/slim filter (no crown).
-  faceLandmarker = await tryCreate(
-    FaceLandmarker,
-    'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-    { numFaces: 1, outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false }
-  );
 }
 
 /* ---------------------------------------------------------------------- */
-/* 6. Camera setup                                                        */
+/* 5. Camera setup                                                        */
 /* ---------------------------------------------------------------------- */
 // The video fills the fullscreen stage with object-fit:cover (crops to fill,
 // no distortion). MediaPipe landmarks are normalized to the *source* video
@@ -821,7 +688,7 @@ async function startCamera(){
 }
 
 /* ---------------------------------------------------------------------- */
-/* 7. Main loop                                                           */
+/* 6. Main loop                                                           */
 /* ---------------------------------------------------------------------- */
 let lastVideoTime = -1;
 let lastFrameTs = performance.now();
@@ -841,7 +708,6 @@ function setPill(el, active, text){
 // which matters a lot at 4K: copying a full-res frame down to a small
 // detection size is the expensive part, not the model inference itself.
 let latestHandLandmarks = [];
-let latestFaceLandmarks = null; // null = no face currently detected
 let detecting = false;
 let detectIntervalMs = 0;
 
@@ -852,21 +718,16 @@ async function detectTick(){
     lastVideoTime = video.currentTime;
     const t0 = performance.now();
     try{
-      // One captured/resized frame is reused for both models, so adding
-      // face tracking back doesn't double the per-tick frame-copy cost.
-      let source = detectCanvas;
-      let bmp = null;
+      let result;
       if (window.createImageBitmap){
-        bmp = await createImageBitmap(video, { resizeWidth: detectCanvas.width, resizeHeight: detectCanvas.height, resizeQuality: 'low' });
-        source = bmp;
+        const bmp = await createImageBitmap(video, { resizeWidth: detectCanvas.width, resizeHeight: detectCanvas.height, resizeQuality: 'low' });
+        result = handLandmarker.detectForVideo(bmp, performance.now());
+        bmp.close();
       } else {
         detectCtx.drawImage(video, 0, 0, detectCanvas.width, detectCanvas.height);
+        result = handLandmarker.detectForVideo(detectCanvas, performance.now());
       }
-      const handResult = handLandmarker.detectForVideo(source, performance.now());
-      latestHandLandmarks = handResult.landmarks || [];
-      const faceResult = faceLandmarker.detectForVideo(source, performance.now());
-      latestFaceLandmarks = (faceResult.faceLandmarks && faceResult.faceLandmarks[0]) || null;
-      if (bmp) bmp.close();
+      latestHandLandmarks = result.landmarks || [];
     } catch(e){ /* transient decode hiccup - just retry next tick */ }
     // Adapt the next gap so detection never eats more than ~40% of the
     // frame budget: fast (GPU) devices stay near max-rate, slow ones back off.
@@ -921,12 +782,11 @@ function loop(nowMs){
   particles = particles.filter(p => !p.dead);
 
   ctx.clearRect(0, 0, cw, ch);
-  drawFaceRetouch(ctx);
   particles.forEach(p => p.draw(ctx));
 }
 
 /* ---------------------------------------------------------------------- */
-/* 8. Boot sequence                                                       */
+/* 7. Boot sequence                                                       */
 /* ---------------------------------------------------------------------- */
 startBtn.addEventListener('click', async () => {
   startBtn.disabled = true;
@@ -962,7 +822,7 @@ startBtn.addEventListener('click', async () => {
 });
 
 /* ---------------------------------------------------------------------- */
-/* 9. Photo capture                                                       */
+/* 8. Photo capture                                                       */
 /* ---------------------------------------------------------------------- */
 let toastTimer = null;
 
