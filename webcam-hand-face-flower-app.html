@@ -738,7 +738,7 @@ function drawHandOverlay(ctx, lm, mode){
   // Scale the overlay's line weights to the hand's on-screen size so it
   // looks the same whether the user is close to or far from the camera.
   const handScale = dist(pts[0], pts[9]) || 1;
-  const boneW = Math.max(1, handScale * 0.045);
+  const boneW = Math.max(0.6, handScale * 0.02);
   const jointR = Math.max(1.2, handScale * 0.03);
 
   // Pointing hands glow warmer/brighter to signal "this is the one drawing".
