@@ -36,54 +36,24 @@
   :root{
     --pink: #ff9ebb;
     --pink-deep: #ff6f9c;
-    --cream: #fff7f2;
-    --leaf: #7fb069;
   }
   *{ box-sizing: border-box; }
   html, body{
-    margin:0; padding:0; height:100%;
-    background: radial-gradient(circle at 20% 20%, #ffe9f2 0%, #ffd9e8 35%, #ffc6da 100%);
+    margin:0; padding:0; width:100%; height:100%;
+    background:#000;
     font-family: 'Gaegu', sans-serif;
-    color:#6b4054;
-    overflow-x:hidden;
+    color:#fff;
+    overflow:hidden;
+    overscroll-behavior:none;
   }
-  .app{
-    min-height:100%;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding: 22px 14px 40px;
-  }
-  h1{
-    font-family:'Jua', sans-serif;
-    font-size: clamp(22px, 4vw, 32px);
-    margin: 4px 0 4px;
-    color:#e8558a;
-    text-shadow: 0 2px 0 rgba(255,255,255,0.7);
-    letter-spacing: 1px;
-  }
-  .subtitle{
-    font-size: 15px;
-    margin: 0 0 16px;
-    color:#a15f7c;
-    text-align:center;
-  }
-  .stage-wrap{
-    position: relative;
-    width: 100%;
-    max-width: 720px;
-    border-radius: 26px;
-    overflow: hidden;
-    box-shadow: 0 18px 40px rgba(210, 90, 140, 0.28), 0 0 0 6px rgba(255,255,255,0.6) inset;
-    background: #2a1f26;
-  }
-  .stage{
-    position: relative;
-    width: 100%;
-    /* aspect-ratio set dynamically by JS to match camera stream */
-    aspect-ratio: 4 / 3;
+  #stage{
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
     transform: scaleX(-1); /* mirror both video + canvas together, keeps landmarks aligned */
-    background:#1c1418;
+    background:#000;
+    overflow:hidden;
   }
   video, canvas{
     position:absolute;
@@ -92,13 +62,14 @@
     height:100%;
     display:block;
   }
-  video{ object-fit: contain; }
+  video{ object-fit: cover; }
   canvas{ pointer-events:none; }
 
   .hud{
     position:absolute;
-    left:0; right:0; bottom:0;
-    padding: 10px 14px;
+    left:0; right:0;
+    top: max(14px, env(safe-area-inset-top));
+    padding: 0 14px;
     display:flex;
     gap:8px;
     flex-wrap:wrap;
@@ -107,111 +78,86 @@
     pointer-events:none;
   }
   .pill{
-    background: rgba(255,255,255,0.85);
+    background: rgba(20,15,20,0.45);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.18);
     border-radius: 999px;
     padding: 5px 12px;
     font-size: 13px;
-    color:#8a4a63;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-    transition: opacity .25s ease, transform .25s ease;
+    color:#fff;
+    transition: opacity .25s ease, transform .25s ease, background .25s ease;
   }
-  .pill.off{ opacity:0.35; transform: scale(0.95); }
-  .pill.on{ opacity:1; background: rgba(255,159,187,0.92); color:#fff; }
+  .pill.off{ opacity:0.45; transform: scale(0.95); }
+  .pill.on{ opacity:1; background: rgba(255,111,156,0.85); border-color: rgba(255,255,255,0.4); }
 
   .overlay-panel{
     position:absolute; inset:0;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap: 14px;
-    background: linear-gradient(160deg, rgba(255,214,229,0.96), rgba(255,193,215,0.96));
+    background: radial-gradient(circle at 50% 30%, rgba(50,32,40,0.96), rgba(10,8,10,0.98));
     text-align:center;
     padding: 24px;
+    transform: scaleX(-1); /* un-mirror so intro text reads normally */
   }
   .overlay-panel.hidden{ display:none; }
-  .flower-emoji{ font-size: 44px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15)); }
+  .flower-emoji{ font-size: 48px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
+  h1{
+    font-family:'Jua', sans-serif;
+    font-size: clamp(22px, 5vw, 30px);
+    margin: 0;
+    color:#ffb0c9;
+    letter-spacing: 1px;
+  }
   .btn{
     font-family:'Jua', sans-serif;
     font-size: 17px;
-    padding: 12px 26px;
+    padding: 13px 30px;
     border-radius: 999px;
     border: none;
     background: linear-gradient(135deg, #ff9ebb, #ff6f9c);
     color: white;
     cursor: pointer;
-    box-shadow: 0 8px 18px rgba(255, 111, 156, 0.45);
+    box-shadow: 0 8px 22px rgba(255, 111, 156, 0.4);
     transition: transform .15s ease, box-shadow .15s ease;
   }
-  .btn:hover{ transform: translateY(-2px); box-shadow: 0 10px 22px rgba(255, 111, 156, 0.55); }
+  .btn:hover{ transform: translateY(-2px); box-shadow: 0 10px 26px rgba(255, 111, 156, 0.5); }
   .btn:active{ transform: translateY(0px) scale(0.97); }
-  .overlay-panel p{ max-width: 420px; line-height:1.6; font-size:14.5px; color:#7a3f56; }
-  .overlay-panel .err{ color:#c0304f; font-weight:bold; }
+  .overlay-panel p{ max-width: 420px; line-height:1.7; font-size:14.5px; color:#e6d3da; }
+  .overlay-panel .hint{ font-size:13px; color:#b993a6; max-width:340px; }
+  .overlay-panel .err{ color:#ff7d94; font-weight:bold; }
 
   .spinner{
     width: 34px; height:34px;
     border-radius:50%;
-    border: 4px solid rgba(255,255,255,0.6);
-    border-top-color: #e8558a;
+    border: 4px solid rgba(255,255,255,0.2);
+    border-top-color: #ff9ebb;
     animation: spin 0.9s linear infinite;
   }
   @keyframes spin{ to{ transform: rotate(360deg); } }
-
-  .guide{
-    margin-top: 18px;
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 10px;
-    width:100%;
-    max-width: 720px;
-  }
-  .guide .card{
-    background: rgba(255,255,255,0.65);
-    border-radius: 16px;
-    padding: 12px 14px;
-    font-size: 13.5px;
-    line-height:1.5;
-    box-shadow: 0 4px 10px rgba(210,90,140,0.12);
-  }
-  .guide .card b{ display:block; font-family:'Jua', sans-serif; font-size:14.5px; color:#e8558a; margin-bottom:2px; }
-  footer{
-    margin-top: 18px;
-    font-size: 12px;
-    color:#b98299;
-  }
 </style>
 </head>
 <body>
-<div class="app">
-  <h1>🌸 감성 플라워캠</h1>
-  <p class="subtitle">손끝으로 그리고, 얼굴엔 꽃 화관을 씌우고, 손을 펴면 흩날려요</p>
-
-  <div class="stage-wrap">
-    <div class="stage" id="stage">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="canvas"></canvas>
-      <div class="hud">
-        <span class="pill off" id="pillHand">✋ 손 인식 대기중</span>
-        <span class="pill off" id="pillFace">🙂 얼굴 인식 대기중</span>
-      </div>
-    </div>
-
-    <div class="overlay-panel" id="startPanel">
-      <div class="flower-emoji">💐</div>
-      <p>웹캠으로 손동작과 얼굴을 인식해서<br/>실시간으로 예쁜 꽃 이펙트를 그려주는 앱이에요.<br/>카메라 사용을 허락해주세요!</p>
-      <button class="btn" id="startBtn">카메라 시작하기</button>
-      <p id="startError" class="err"></p>
-    </div>
-
-    <div class="overlay-panel hidden" id="loadingPanel">
-      <div class="spinner"></div>
-      <p id="loadingText">꽃씨를 심는 중이에요... (AI 모델을 불러오고 있어요)</p>
-    </div>
+<div id="stage">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div class="hud">
+    <span class="pill off" id="pillHand">✋ 손 인식 대기중</span>
+    <span class="pill off" id="pillFace">🙂 얼굴 인식 대기중</span>
   </div>
 
-  <div class="guide">
-    <div class="card"><b>🌼 포인팅 그리기</b>검지 손가락을 움직이면 손끝을 따라 꽃과 나뭇잎, 반짝이가 피어나요.</div>
-    <div class="card"><b>👑 꽃 화관</b>얼굴을 비추면 머리 위에 살랑거리는 꽃 화관이 자동으로 씌워져요.</div>
-    <div class="card"><b>🌷 흩뿌리기</b>손바닥을 활짝 펴면 화면의 꽃들이 사방으로 흩날리며 사라져요.</div>
+  <div class="overlay-panel" id="startPanel">
+    <div class="flower-emoji">💐</div>
+    <h1>감성 플라워캠</h1>
+    <p>웹캠으로 손동작과 얼굴을 인식해서<br/>실시간으로 예쁜 꽃 이펙트를 그려주는 앱이에요.</p>
+    <p class="hint">🌼 손끝을 움직이면 꽃이 피어나요 · 👑 얼굴엔 꽃 화관이 씌워져요 · 🌷 손을 펴면 흩날려요</p>
+    <button class="btn" id="startBtn">카메라 시작하기</button>
+    <p id="startError" class="err"></p>
   </div>
-  <footer>MediaPipe Hand / Face Landmarker 기반 · 카메라 영상은 저장되지 않고 브라우저에서만 처리됩니다</footer>
+
+  <div class="overlay-panel hidden" id="loadingPanel">
+    <div class="spinner"></div>
+    <p id="loadingText">꽃씨를 심는 중이에요... (AI 모델을 불러오고 있어요)</p>
+  </div>
 </div>
 
 <script type="module">
@@ -389,8 +335,8 @@ class Particle{
     this.targetScale = 1;
     this.age = 0;
     this.growDuration = 0.2; // 0.2s pop-in
-    this.life = 3.5 + Math.random() * 2.5; // seconds before natural fade
-    this.fadeDuration = 1.0;
+    this.life = 1.2 + Math.random() * 0.8; // seconds before natural fade starts
+    this.fadeDuration = 0.9; // fades out over ~0.9s, total lifespan ~2-3s
     this.mode = 'grow'; // grow -> alive -> fading -> scatter -> dead
     this.alpha = 0;
     this.vx = 0; this.vy = 0;
@@ -499,7 +445,7 @@ function attachCrownImages(){
 // smoothed head tracking state
 const head = { x: 0, y: 0, width: 0, angle: 0, alpha: 0, ready: false };
 
-function updateCrownAnchor(faceLandmarks, cw, ch, dt){
+function updateCrownAnchor(faceLandmarks, dt){
   if (faceLandmarks){
     const top = faceLandmarks[10];
     const templeL = faceLandmarks[127];
@@ -507,11 +453,11 @@ function updateCrownAnchor(faceLandmarks, cw, ch, dt){
     const eyeL = faceLandmarks[33];
     const eyeR = faceLandmarks[263];
 
-    const topPx = { x: top.x * cw, y: top.y * ch };
-    const tlPx = { x: templeL.x * cw, y: templeL.y * ch };
-    const trPx = { x: templeR.x * cw, y: templeR.y * ch };
-    const elPx = { x: eyeL.x * cw, y: eyeL.y * ch };
-    const erPx = { x: eyeR.x * cw, y: eyeR.y * ch };
+    const topPx = toScreen(top.x, top.y);
+    const tlPx = toScreen(templeL.x, templeL.y);
+    const trPx = toScreen(templeR.x, templeR.y);
+    const elPx = toScreen(eyeL.x, eyeL.y);
+    const erPx = toScreen(eyeR.x, eyeR.y);
 
     const width = Math.hypot(trPx.x - tlPx.x, trPx.y - tlPx.y);
     const angle = Math.atan2(erPx.y - elPx.y, erPx.x - elPx.x);
@@ -623,9 +569,46 @@ async function createLandmarkers(){
 /* ---------------------------------------------------------------------- */
 /* 6. Camera setup                                                        */
 /* ---------------------------------------------------------------------- */
+// The video fills the fullscreen stage with object-fit:cover (crops to fill,
+// no distortion). MediaPipe landmarks are normalized to the *source* video
+// frame though, so we track the cover crop's scale/offset to map them onto
+// screen pixels correctly.
+let videoW = 0, videoH = 0;
+let coverScale = 1, coverOffsetX = 0, coverOffsetY = 0;
+let dpr = window.devicePixelRatio || 1;
+
+function updateCoverTransform(){
+  if (!videoW || !videoH) return;
+  const rect = stage.getBoundingClientRect();
+  coverScale = Math.max(rect.width / videoW, rect.height / videoH);
+  coverOffsetX = (videoW * coverScale - rect.width) / 2;
+  coverOffsetY = (videoH * coverScale - rect.height) / 2;
+}
+
+function resizeCanvasToStage(){
+  const rect = stage.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  updateCoverTransform();
+}
+
+// Maps a normalized (0-1) landmark coordinate (relative to the source video
+// frame) to on-screen canvas pixel coordinates under the cover crop.
+function toScreen(nx, ny){
+  return {
+    x: nx * videoW * coverScale - coverOffsetX,
+    y: ny * videoH * coverScale - coverOffsetY,
+  };
+}
+
+window.addEventListener('resize', () => { if (running) resizeCanvasToStage(); });
+document.addEventListener('fullscreenchange', () => { if (running) resizeCanvasToStage(); });
+
 async function startCamera(){
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
     audio: false,
   });
   video.srcObject = stream;
@@ -634,9 +617,9 @@ async function startCamera(){
   });
   await video.play();
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  stage.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+  videoW = video.videoWidth;
+  videoH = video.videoHeight;
+  resizeCanvasToStage();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -669,7 +652,7 @@ function loop(nowMs){
   const dt = Math.min(0.05, (nowMs - lastFrameTs) / 1000);
   lastFrameTs = nowMs;
 
-  const cw = canvas.width, ch = canvas.height;
+  const cw = canvas.width / dpr, ch = canvas.height / dpr;
   if (cw === 0 || ch === 0) return;
 
   const { handResult, faceResult } = processResults(nowMs);
@@ -695,7 +678,7 @@ function loop(nowMs){
 
       if (!open){
         const tip = lm[8];
-        const x = tip.x * cw, y = tip.y * ch;
+        const { x, y } = toScreen(tip.x, tip.y);
         if (!st.lastSpawn || dist(st.lastSpawn, { x, y }) > 16){
           spawnParticle(x, y);
           st.lastSpawn = { x, y };
@@ -711,7 +694,7 @@ function loop(nowMs){
   if (faceResult){
     const faces = faceResult.faceLandmarks || [];
     setPill(pillFace, faces.length > 0, faces.length > 0 ? '🙂 얼굴 인식중' : '🙂 얼굴 인식 대기중');
-    updateCrownAnchor(faces[0] || null, cw, ch, dt);
+    updateCrownAnchor(faces[0] || null, dt);
   }
 
   // --- update + render ---
@@ -731,6 +714,11 @@ startBtn.addEventListener('click', async () => {
   startError.textContent = '';
   startPanel.classList.add('hidden');
   loadingPanel.classList.remove('hidden');
+
+  // Best-effort native fullscreen; the layout is already fullscreen via CSS
+  // regardless, so a rejection here (sandboxed iframe, user setting, etc.)
+  // is safe to ignore.
+  try{ await document.documentElement.requestFullscreen(); } catch(e){}
 
   try{
     loadingText.textContent = '카메라를 켜는 중이에요...';
