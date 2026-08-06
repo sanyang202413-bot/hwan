@@ -241,7 +241,7 @@
     <div class="flower-emoji">💐</div>
     <h1>감성 플라워캠</h1>
     <p>웹캠으로 손동작을 인식해서<br/>실시간으로 예쁜 꽃 이펙트를 그려주는 앱이에요.</p>
-    <p class="hint">🌼 손끝을 움직이면 꽃이 피어나요 · 🌷 손을 펴면 흩날려요 · 📸 마음에 드는 순간엔 사진을 찍어보세요</p>
+    <p class="hint">☝️ 검지를 움직여 꽃을 그려요 (그린 꽃은 계속 남아요) · ✊→🖐️ 손을 오므렸다 펴면 꽃이 흩날려요 · 📸 마음에 드는 순간엔 사진을 찍어보세요</p>
     <button class="btn" id="startBtn">카메라 시작하기</button>
     <p id="startError" class="err"></p>
   </div>
@@ -486,23 +486,31 @@ class Particle{
     this.targetScale = 1;
     this.age = 0;
     this.growDuration = 0.2; // 0.2s pop-in
-    this.life = 1.2 + Math.random() * 0.8; // seconds before natural fade starts
-    this.fadeDuration = 0.9; // fades out over ~0.9s, total lifespan ~2-3s
-    this.mode = 'grow'; // grow -> alive -> fading -> scatter -> dead
+    // No natural lifespan: planted flowers stay on screen indefinitely and
+    // only ever leave via the open-hand scatter gesture.
+    this.mode = 'grow'; // grow -> alive -> scatter -> dead
     this.alpha = 0;
     this.vx = 0; this.vy = 0;
     this.dead = false;
+    this.baked = false; // true once painted into the static layer
   }
   scatter(){
     if (this.mode === 'scatter') return;
     this.mode = 'scatter';
+    // Gentle, dreamy drift rather than an explosive burst: slow outward
+    // speed, a slight upward bias so petals seem to lift and float away,
+    // and a long slow fade.
     const angle = Math.random() * Math.PI * 2;
-    const speed = 160 + Math.random() * 260;
+    const speed = 30 + Math.random() * 70;
     this.vx = Math.cos(angle) * speed;
-    this.vy = Math.sin(angle) * speed;
-    this.rotSpeed = (Math.random() - 0.5) * 10;
+    this.vy = Math.sin(angle) * speed - (25 + Math.random() * 45);
+    this.rotSpeed = (Math.random() - 0.5) * 1.6;
+    this.swayPhase = Math.random() * Math.PI * 2;
+    this.swaySpeed = 0.8 + Math.random() * 1.2;
+    this.swayAmp = 12 + Math.random() * 26;
     this.scatterAge = 0;
-    this.scatterLife = 0.9 + Math.random() * 0.5;
+    this.scatterDelay = Math.random() * 0.55;      // staggered so the sweep ripples across the screen
+    this.scatterLife = 2.4 + Math.random() * 1.6;  // slow ~2.4-4s fade out
   }
   update(dt){
     this.age += dt;
@@ -514,27 +522,23 @@ class Particle{
       this.rotation += this.rotSpeed * dt;
       if (t >= 1) this.mode = 'alive';
     } else if (this.mode === 'alive'){
-      this.scale = this.targetScale + Math.sin(this.age * 2) * 0.02;
-      this.rotation += this.rotSpeed * dt * 0.3;
-      if (this.age >= this.life){
-        this.mode = 'fading';
-        this.fadeStart = this.age;
-      }
-    } else if (this.mode === 'fading'){
-      const t = Math.min(1, (this.age - this.fadeStart) / this.fadeDuration);
-      this.alpha = this.baseAlpha * (1 - t);
-      this.rotation += this.rotSpeed * dt * 0.3;
-      if (t >= 1) this.dead = true;
+      // Settled: holds its pose exactly, which is what lets it be baked into
+      // the static layer and skipped on subsequent frames.
+      this.scale = this.targetScale;
+      this.alpha = this.baseAlpha;
     } else if (this.mode === 'scatter'){
       this.scatterAge += dt;
-      this.vy += 90 * dt; // gentle gravity for a natural scatter arc
-      this.vx *= (1 - 0.6 * dt);
-      this.x += this.vx * dt;
+      if (this.scatterAge < this.scatterDelay) return; // not swept up yet
+      const st = this.scatterAge - this.scatterDelay;
+      this.vy += 26 * dt;             // very light gravity - petals hang in the air
+      this.vx *= (1 - 0.35 * dt);
+      this.vy *= (1 - 0.25 * dt);
+      this.x += (this.vx + Math.sin(st * this.swaySpeed + this.swayPhase) * this.swayAmp) * dt;
       this.y += this.vy * dt;
       this.rotation += this.rotSpeed * dt;
-      const t = Math.min(1, this.scatterAge / this.scatterLife);
-      this.alpha = this.baseAlpha * (1 - t);
-      this.scale = this.targetScale * (1 - 0.15 * t);
+      const t = Math.min(1, st / this.scatterLife);
+      this.alpha = this.baseAlpha * Math.pow(1 - t, 1.6); // soft, lingering falloff
+      this.scale = this.targetScale * (1 + 0.12 * t);
       if (t >= 1) this.dead = true;
     }
   }
@@ -554,10 +558,48 @@ class Particle{
 }
 
 let particles = [];
-const MAX_PARTICLES = 150;
+// Flowers accumulate instead of expiring, so this cap is what actually
+// bounds the scene. Oldest ones drop off once it's reached.
+const MAX_PARTICLES = 600;
+
+// Once a flower has finished popping in it never moves again until it's
+// scattered, so redrawing hundreds of them every frame is pure waste. They
+// get painted once into this offscreen layer, which is then blitted as a
+// single image per frame - what keeps the accumulating bouquet cheap.
+const bakedCanvas = document.createElement('canvas');
+const bakedCtx = bakedCanvas.getContext('2d');
+let rebakeNeeded = false;
+
+function resizeBakedLayer(){
+  bakedCanvas.width = canvas.width;
+  bakedCanvas.height = canvas.height;
+  bakedCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  rebakeNeeded = true; // canvas resize wipes its contents
+}
+
+function clearBakedLayer(){
+  bakedCtx.save();
+  bakedCtx.setTransform(1, 0, 0, 1, 0, 0);
+  bakedCtx.clearRect(0, 0, bakedCanvas.width, bakedCanvas.height);
+  bakedCtx.restore();
+}
+
+function rebakeAll(){
+  clearBakedLayer();
+  particles.forEach(p => {
+    if (p.mode === 'alive'){ p.draw(bakedCtx); p.baked = true; }
+    else p.baked = false;
+  });
+  rebakeNeeded = false;
+}
 
 function spawnParticle(x, y){
-  if (particles.length >= MAX_PARTICLES) particles.shift();
+  if (particles.length >= MAX_PARTICLES){
+    // The dropped flower's pixels are still sitting in the baked layer, so
+    // the layer has to be rebuilt without it.
+    const gone = particles.shift();
+    if (gone.baked) rebakeNeeded = true;
+  }
   const type = TRAIL_TYPES[(Math.random() * TRAIL_TYPES.length) | 0];
   const jitterX = (Math.random() - 0.5) * 14;
   const jitterY = (Math.random() - 0.5) * 14;
@@ -565,7 +607,10 @@ function spawnParticle(x, y){
 }
 
 function scatterAllParticles(){
-  particles.forEach(p => p.scatter());
+  // Everything starts moving again, so nothing can stay baked.
+  clearBakedLayer();
+  rebakeNeeded = false;
+  particles.forEach(p => { p.baked = false; p.scatter(); });
 }
 
 /* ---------------------------------------------------------------------- */
@@ -586,21 +631,34 @@ function catmullRomPoint(p0, p1, p2, p3, t){
   };
 }
 
-const SPAWN_GAP = 9; // smaller = flowers bloom with less finger movement (more sensitive)
+const SPAWN_GAP = 11;       // spacing between flowers along the drawn stroke
+const MOVE_THRESHOLD = 7;   // px the fingertip must travel before a new flower is planted
+const TIP_SMOOTHING = 0.45; // EMA factor - tames landmark jitter so strokes read as smooth curves
 
 // Spawns flowers along a smooth curve from the hand's recent trail to the
 // new point (x, y), rather than only at the new point - keeps the trail
 // visually continuous through fast swipes and gives it a natural curve
-// instead of a straight connect-the-dots line.
-function spawnAlongTrail(st, x, y){
+// instead of a straight connect-the-dots line. Returns true when the finger
+// actually moved enough to plant something.
+function spawnAlongTrail(st, rawX, rawY){
+  // Smooth the tracked fingertip before drawing with it. Raw landmarks
+  // jitter a pixel or two every frame even for a perfectly still hand,
+  // which would otherwise dribble flowers out of a motionless finger.
+  if (st.smoothTip){
+    st.smoothTip.x += (rawX - st.smoothTip.x) * TIP_SMOOTHING;
+    st.smoothTip.y += (rawY - st.smoothTip.y) * TIP_SMOOTHING;
+  } else {
+    st.smoothTip = { x: rawX, y: rawY };
+  }
+  const x = st.smoothTip.x, y = st.smoothTip.y;
+
   if (!st.trail.length){
-    spawnParticle(x, y);
     st.trail = [{ x, y }];
-    return;
+    return false; // don't plant on the first frame - wait for real movement
   }
   const last = st.trail[st.trail.length - 1];
   const segDist = dist(last, { x, y });
-  if (segDist < 1) return; // ignore sub-pixel jitter
+  if (segDist < MOVE_THRESHOLD) return false; // finger is essentially still
 
   st.trail.push({ x, y });
   if (st.trail.length > 3) st.trail.shift();
@@ -615,25 +673,125 @@ function spawnAlongTrail(st, x, y){
     const pt = catmullRomPoint(p0, p1, p2, p3, i / steps);
     spawnParticle(pt.x, pt.y);
   }
+  return true;
+}
+
+const FINGER_TIPS = [8, 12, 16, 20];
+const FINGER_PIPS = [6, 10, 14, 18];
+
+// A finger counts as extended when its tip sits meaningfully further from
+// the wrist than its middle joint does - scale-free, so it works the same
+// whether the hand is near or far from the camera.
+function extendedFingers(lm){
+  const wrist = lm[0];
+  const flags = [];
+  for (let i = 0; i < 4; i++){
+    flags.push(dist(wrist, lm[FINGER_TIPS[i]]) > dist(wrist, lm[FINGER_PIPS[i]]) * 1.12);
+  }
+  return flags;
 }
 
 function isHandOpen(lm){
-  const wrist = lm[0];
-  const mcps = [5, 9, 13, 17].map(i => lm[i]);
-  const tips = [8, 12, 16, 20].map(i => lm[i]);
-  const pips = [6, 10, 14, 18].map(i => lm[i]);
-  const handScale = dist(wrist, lm[9]) || 0.001;
+  const handScale = dist(lm[0], lm[9]) || 0.001;
+  const flags = extendedFingers(lm);
+  const spread = dist(lm[8], lm[20]) / handScale;
+  return flags.every(Boolean) && spread > 1.5;
+}
 
-  let extendedCount = 0;
+// Fist / closed hand: every finger curled in. This is the first half of the
+// "close, then open" gesture that sweeps the screen.
+function isHandClosed(lm){
+  const wrist = lm[0];
+  const handScale = dist(wrist, lm[9]) || 0.001;
+  let curled = 0;
   for (let i = 0; i < 4; i++){
-    if (dist(wrist, tips[i]) > dist(wrist, pips[i]) * 1.12) extendedCount++;
+    if (dist(wrist, lm[FINGER_TIPS[i]]) < dist(wrist, lm[FINGER_PIPS[i]]) * 1.05) curled++;
   }
-  const spread = dist(tips[0], tips[3]) / handScale;
-  return extendedCount >= 4 && spread > 1.5;
+  const spread = dist(lm[8], lm[20]) / handScale;
+  return curled >= 3 && spread < 1.3;
+}
+
+// Pointing: index finger out, the other three tucked away. Flowers are only
+// planted in this pose, so a hand that's simply moving through frame (or an
+// open palm being waved) doesn't smear flowers everywhere.
+function isPointing(lm){
+  const [index, middle, ring, pinky] = extendedFingers(lm);
+  return index && !middle && !ring && !pinky;
 }
 
 /* ---------------------------------------------------------------------- */
-/* 4. MediaPipe setup                                                     */
+/* 4. Hand tracking overlay (visible proof the hand is being read)        */
+/* ---------------------------------------------------------------------- */
+// Standard MediaPipe hand topology: bone segments between the 21 landmarks.
+const HAND_BONES = [
+  [0,1],[1,2],[2,3],[3,4],          // thumb
+  [0,5],[5,6],[6,7],[7,8],          // index
+  [5,9],[9,10],[10,11],[11,12],     // middle
+  [9,13],[13,14],[14,15],[15,16],   // ring
+  [13,17],[17,18],[18,19],[19,20],  // pinky
+  [0,17],                           // palm base
+];
+const PALM_HULL = [0, 1, 5, 9, 13, 17]; // filled to give the hand a soft body
+
+function drawHandOverlay(ctx, lm, mode){
+  const pts = lm.map(p => toScreen(p.x, p.y));
+  // Scale the overlay's line weights to the hand's on-screen size so it
+  // looks the same whether the user is close to or far from the camera.
+  const handScale = dist(pts[0], pts[9]) || 1;
+  const boneW = Math.max(2, handScale * 0.115);
+  const jointR = Math.max(1.8, handScale * 0.058);
+
+  // Pointing hands glow warmer/brighter to signal "this is the one drawing".
+  const tint = mode === 'point' ? '255,150,185' : '255,190,205';
+  const bodyAlpha = mode === 'point' ? 0.30 : 0.20;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  PALM_HULL.forEach((i, k) => { k ? ctx.lineTo(pts[i].x, pts[i].y) : ctx.moveTo(pts[i].x, pts[i].y); });
+  ctx.closePath();
+  ctx.fillStyle = `rgba(${tint},${bodyAlpha})`;
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(${tint},0.5)`;
+  ctx.lineWidth = boneW * 1.9;
+  ctx.beginPath();
+  HAND_BONES.forEach(([a, b]) => {
+    ctx.moveTo(pts[a].x, pts[a].y);
+    ctx.lineTo(pts[b].x, pts[b].y);
+  });
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = Math.max(1, boneW * 0.5);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  pts.forEach((p, i) => {
+    const r = (i === 8 && mode === 'point') ? jointR * 2 : jointR;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Halo on the index tip while pointing - shows exactly where flowers land.
+  if (mode === 'point'){
+    const tip = pts[8];
+    const glow = ctx.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, jointR * 6);
+    glow.addColorStop(0, 'rgba(255,255,255,0.55)');
+    glow.addColorStop(1, 'rgba(255,150,185,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, jointR * 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------------------------------------------------------------------- */
+/* 5. MediaPipe setup                                                     */
 /* ---------------------------------------------------------------------- */
 let handLandmarker = null;
 
@@ -670,7 +828,7 @@ async function createLandmarkers(){
 }
 
 /* ---------------------------------------------------------------------- */
-/* 5. Camera setup                                                        */
+/* 6. Camera setup                                                        */
 /* ---------------------------------------------------------------------- */
 // The video fills the fullscreen stage with object-fit:cover (crops to fill,
 // no distortion). MediaPipe landmarks are normalized to the *source* video
@@ -704,6 +862,7 @@ function resizeCanvasToStage(){
   canvas.width = Math.max(1, Math.round(rect.width * dpr));
   canvas.height = Math.max(1, Math.round(rect.height * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  resizeBakedLayer();
   updateCoverTransform();
 }
 
@@ -739,7 +898,7 @@ async function startCamera(){
 }
 
 /* ---------------------------------------------------------------------- */
-/* 6. Main loop                                                           */
+/* 7. Main loop                                                           */
 /* ---------------------------------------------------------------------- */
 let lastVideoTime = -1;
 let lastFrameTs = performance.now();
@@ -761,6 +920,7 @@ function setPill(el, active, text){
 let latestHandLandmarks = [];
 let detecting = false;
 let detectIntervalMs = 0;
+let scatterFlashUntil = 0; // keeps the "흩날려요" status up briefly after a scatter fires
 
 async function detectTick(){
   if (!running) return;
@@ -798,46 +958,84 @@ function loop(nowMs){
   const cw = canvas.width / dpr, ch = canvas.height / dpr;
   if (cw === 0 || ch === 0) return;
 
-  // --- hands: trail drawing + open-hand scatter ---
+  // --- hands: pointing plants flowers, close-then-open scatters them ---
+  const overlays = [];
   {
     const hands = latestHandLandmarks;
-    setPill(pillHand, hands.length > 0, hands.length > 0 ? `✋ 손 ${hands.length}개 인식중` : '✋ 손 인식 대기중');
-
     const seenSlots = new Set();
+    let statusText = '✋ 손 인식 대기중';
+    let drawingNow = false;
+
     hands.forEach((lm, idx) => {
       seenSlots.add(idx);
-      if (!handState[idx]) handState[idx] = { wasOpen: false, trail: [], cooldown: 0 };
+      if (!handState[idx]) handState[idx] = { armed: false, trail: [], smoothTip: null, cooldown: 0 };
       const st = handState[idx];
       st.cooldown = Math.max(0, st.cooldown - dt);
 
       const open = isHandOpen(lm);
-      if (open && !st.wasOpen && st.cooldown <= 0){
-        scatterAllParticles();
-        st.cooldown = 0.6; // short cooldown so repeated open/close gestures feel snappy
-      }
-      st.wasOpen = open;
+      const closed = isHandClosed(lm);
+      const pointing = isPointing(lm);
 
-      if (!open){
+      // "Close, then open" - curling up arms the gesture, opening fires it.
+      // Requiring both halves means a hand that merely enters frame already
+      // open can't accidentally wipe the screen.
+      if (closed) st.armed = true;
+      if (open && st.armed && st.cooldown <= 0){
+        scatterAllParticles();
+        st.armed = false;
+        st.cooldown = 0.8;
+        scatterFlashUntil = nowMs + 1600;
+      }
+
+      let mode = 'idle';
+      if (pointing){
+        mode = 'point';
         const tip = lm[8];
         const { x, y } = toScreen(tip.x, tip.y);
-        spawnAlongTrail(st, x, y);
+        if (spawnAlongTrail(st, x, y)) drawingNow = true;
       } else {
+        mode = open ? 'open' : (closed ? 'closed' : 'idle');
         st.trail = [];
+        st.smoothTip = null;
+      }
+      overlays.push({ lm, mode });
+
+      if (idx === 0){
+        if (nowMs < scatterFlashUntil) statusText = '🌬️ 꽃이 흩날려요';
+        else if (mode === 'point') statusText = drawingNow ? '🌸 꽃을 그리는 중' : '☝️ 검지를 움직여 그려보세요';
+        else if (mode === 'open') statusText = '🖐️ 오므렸다 펴면 흩날려요';
+        else if (mode === 'closed') statusText = '✊ 이제 손을 펴보세요';
+        else statusText = '✋ 손 인식중';
       }
     });
+
+    setPill(pillHand, hands.length > 0, statusText);
     Object.keys(handState).forEach(key => { if (!seenSlots.has(Number(key))) delete handState[key]; });
   }
 
   // --- update + render ---
   particles.forEach(p => p.update(dt));
-  particles = particles.filter(p => !p.dead);
+  if (particles.some(p => p.dead)) particles = particles.filter(p => !p.dead);
+
+  // Flowers that have just finished settling get retired into the static
+  // layer, so from here on they cost one shared blit instead of one draw
+  // call each.
+  if (rebakeNeeded){
+    rebakeAll();
+  } else {
+    particles.forEach(p => {
+      if (!p.baked && p.mode === 'alive'){ p.draw(bakedCtx); p.baked = true; }
+    });
+  }
 
   ctx.clearRect(0, 0, cw, ch);
-  particles.forEach(p => p.draw(ctx));
+  ctx.drawImage(bakedCanvas, 0, 0, cw, ch);
+  particles.forEach(p => { if (!p.baked) p.draw(ctx); });
+  overlays.forEach(o => drawHandOverlay(ctx, o.lm, o.mode));
 }
 
 /* ---------------------------------------------------------------------- */
-/* 7. Boot sequence                                                       */
+/* 8. Boot sequence                                                       */
 /* ---------------------------------------------------------------------- */
 startBtn.addEventListener('click', async () => {
   startBtn.disabled = true;
@@ -873,7 +1071,7 @@ startBtn.addEventListener('click', async () => {
 });
 
 /* ---------------------------------------------------------------------- */
-/* 8. Photo capture                                                       */
+/* 9. Photo capture                                                       */
 /* ---------------------------------------------------------------------- */
 let toastTimer = null;
 
@@ -886,10 +1084,12 @@ function showToast(msg){
 
 let pendingPhotoDataUrl = null;
 
-// Composites the current video frame + flower canvas exactly as shown on
-// screen (mirrored, cover-cropped) into a PNG, then shows a review overlay
-// instead of saving right away - the user gets a moment to look at the shot
-// before deciding to keep it.
+// Composites the current video frame + flowers exactly as shown on screen
+// (mirrored, cover-cropped) into a PNG, then shows a review overlay instead
+// of saving right away - the user gets a moment to look at the shot before
+// deciding to keep it. The flowers are re-drawn here rather than copied off
+// the live canvas so the hand-tracking overlay, which is a UI affordance
+// rather than part of the picture, stays out of the saved photo.
 function capturePhoto(){
   if (!running) return;
   const w = canvas.width, h = canvas.height;
@@ -905,7 +1105,8 @@ function capturePhoto(){
   const dx = -coverOffsetX * dpr;
   const dy = -coverOffsetY * dpr;
   octx.drawImage(video, dx, dy, drawW, drawH);
-  octx.drawImage(canvas, 0, 0, w, h);
+  octx.scale(dpr, dpr); // particles live in CSS-pixel space
+  particles.forEach(p => p.draw(octx));
   octx.restore();
 
   captureBtn.classList.remove('flashing');
