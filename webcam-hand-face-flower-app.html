@@ -738,12 +738,12 @@ function drawHandOverlay(ctx, lm, mode){
   // Scale the overlay's line weights to the hand's on-screen size so it
   // looks the same whether the user is close to or far from the camera.
   const handScale = dist(pts[0], pts[9]) || 1;
-  const boneW = Math.max(2, handScale * 0.115);
-  const jointR = Math.max(1.8, handScale * 0.058);
+  const boneW = Math.max(1, handScale * 0.045);
+  const jointR = Math.max(1.2, handScale * 0.03);
 
   // Pointing hands glow warmer/brighter to signal "this is the one drawing".
   const tint = mode === 'point' ? '255,150,185' : '255,190,205';
-  const bodyAlpha = mode === 'point' ? 0.30 : 0.20;
+  const bodyAlpha = mode === 'point' ? 0.22 : 0.14;
 
   ctx.save();
   ctx.lineCap = 'round';
@@ -755,8 +755,8 @@ function drawHandOverlay(ctx, lm, mode){
   ctx.fillStyle = `rgba(${tint},${bodyAlpha})`;
   ctx.fill();
 
-  ctx.strokeStyle = `rgba(${tint},0.5)`;
-  ctx.lineWidth = boneW * 1.9;
+  ctx.strokeStyle = `rgba(${tint},0.55)`;
+  ctx.lineWidth = boneW * 1.7;
   ctx.beginPath();
   HAND_BONES.forEach(([a, b]) => {
     ctx.moveTo(pts[a].x, pts[a].y);
@@ -765,12 +765,12 @@ function drawHandOverlay(ctx, lm, mode){
   ctx.stroke();
 
   ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = Math.max(1, boneW * 0.5);
+  ctx.lineWidth = Math.max(0.75, boneW * 0.5);
   ctx.stroke();
 
   ctx.fillStyle = 'rgba(255,255,255,0.95)';
   pts.forEach((p, i) => {
-    const r = (i === 8 && mode === 'point') ? jointR * 2 : jointR;
+    const r = (i === 8 && mode === 'point') ? jointR * 1.8 : jointR;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
@@ -968,9 +968,10 @@ function loop(nowMs){
 
     hands.forEach((lm, idx) => {
       seenSlots.add(idx);
-      if (!handState[idx]) handState[idx] = { armed: false, trail: [], smoothTip: null, cooldown: 0 };
+      if (!handState[idx]) handState[idx] = { armed: false, trail: [], smoothTip: null, cooldown: 0, lastSeen: nowMs };
       const st = handState[idx];
       st.cooldown = Math.max(0, st.cooldown - dt);
+      st.lastSeen = nowMs;
 
       const open = isHandOpen(lm);
       const closed = isHandClosed(lm);
@@ -993,10 +994,17 @@ function loop(nowMs){
         const tip = lm[8];
         const { x, y } = toScreen(tip.x, tip.y);
         if (spawnAlongTrail(st, x, y)) drawingNow = true;
-      } else {
-        mode = open ? 'open' : (closed ? 'closed' : 'idle');
+      } else if (open || closed){
+        // A confident switch to a different gesture - safe to end the stroke.
+        mode = open ? 'open' : 'closed';
         st.trail = [];
         st.smoothTip = null;
+      } else {
+        // Ambiguous frame (finger-curl classification flickers a lot near
+        // the bottom of frame / close to the body, where the wrist can be
+        // partly out of view). Don't cut the stroke - just pause a beat so
+        // it can pick back up from the same spot instead of restarting.
+        mode = 'idle';
       }
       overlays.push({ lm, mode });
 
@@ -1010,7 +1018,16 @@ function loop(nowMs){
     });
 
     setPill(pillHand, hands.length > 0, statusText);
-    Object.keys(handState).forEach(key => { if (!seenSlots.has(Number(key))) delete handState[key]; });
+    // Give a briefly-lost hand (tracking dropout, not the user actually
+    // pulling their hand away) a grace window before wiping its stroke -
+    // this is what "flowers don't draw well" near the frame edge usually
+    // turns out to be: a few dropped detections snapping the trail back
+    // to square one instead of continuing where it left off.
+    Object.keys(handState).forEach(key => {
+      if (seenSlots.has(Number(key))) return;
+      const st = handState[key];
+      if (nowMs - st.lastSeen > 350) delete handState[key];
+    });
   }
 
   // --- update + render ---
