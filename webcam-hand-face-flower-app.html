@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🌸 감성 플라워캠</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --pink: #ff9ebb;
+    --pink-deep: #ff6f9c;
+    --cream: #fff7f2;
+    --leaf: #7fb069;
+  }
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; height:100%;
+    background: radial-gradient(circle at 20% 20%, #ffe9f2 0%, #ffd9e8 35%, #ffc6da 100%);
+    font-family: 'Gaegu', sans-serif;
+    color:#6b4054;
+    overflow-x:hidden;
+  }
+  .app{
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding: 22px 14px 40px;
+  }
+  h1{
+    font-family:'Jua', sans-serif;
+    font-size: clamp(22px, 4vw, 32px);
+    margin: 4px 0 4px;
+    color:#e8558a;
+    text-shadow: 0 2px 0 rgba(255,255,255,0.7);
+    letter-spacing: 1px;
+  }
+  .subtitle{
+    font-size: 15px;
+    margin: 0 0 16px;
+    color:#a15f7c;
+    text-align:center;
+  }
+  .stage-wrap{
+    position: relative;
+    width: 100%;
+    max-width: 720px;
+    border-radius: 26px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(210, 90, 140, 0.28), 0 0 0 6px rgba(255,255,255,0.6) inset;
+    background: #2a1f26;
+  }
+  .stage{
+    position: relative;
+    width: 100%;
+    /* aspect-ratio set dynamically by JS to match camera stream */
+    aspect-ratio: 4 / 3;
+    transform: scaleX(-1); /* mirror both video + canvas together, keeps landmarks aligned */
+    background:#1c1418;
+  }
+  video, canvas{
+    position:absolute;
+    top:0; left:0;
+    width:100%;
+    height:100%;
+    display:block;
+  }
+  video{ object-fit: contain; }
+  canvas{ pointer-events:none; }
+
+  .hud{
+    position:absolute;
+    left:0; right:0; bottom:0;
+    padding: 10px 14px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:center;
+    transform: scaleX(-1); /* un-mirror the HUD text so it reads normally */
+    pointer-events:none;
+  }
+  .pill{
+    background: rgba(255,255,255,0.85);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 13px;
+    color:#8a4a63;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .pill.off{ opacity:0.35; transform: scale(0.95); }
+  .pill.on{ opacity:1; background: rgba(255,159,187,0.92); color:#fff; }
+
+  .overlay-panel{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap: 14px;
+    background: linear-gradient(160deg, rgba(255,214,229,0.96), rgba(255,193,215,0.96));
+    text-align:center;
+    padding: 24px;
+    transform: scaleX(-1);
+  }
+  .overlay-panel.hidden{ display:none; }
+  .flower-emoji{ font-size: 44px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15)); }
+  .btn{
+    font-family:'Jua', sans-serif;
+    font-size: 17px;
+    padding: 12px 26px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, #ff9ebb, #ff6f9c);
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(255, 111, 156, 0.45);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover{ transform: translateY(-2px); box-shadow: 0 10px 22px rgba(255, 111, 156, 0.55); }
+  .btn:active{ transform: translateY(0px) scale(0.97); }
+  .overlay-panel p{ max-width: 420px; line-height:1.6; font-size:14.5px; color:#7a3f56; }
+  .overlay-panel .err{ color:#c0304f; font-weight:bold; }
+
+  .spinner{
+    width: 34px; height:34px;
+    border-radius:50%;
+    border: 4px solid rgba(255,255,255,0.6);
+    border-top-color: #e8558a;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  .guide{
+    margin-top: 18px;
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+    width:100%;
+    max-width: 720px;
+  }
+  .guide .card{
+    background: rgba(255,255,255,0.65);
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    line-height:1.5;
+    box-shadow: 0 4px 10px rgba(210,90,140,0.12);
+  }
+  .guide .card b{ display:block; font-family:'Jua', sans-serif; font-size:14.5px; color:#e8558a; margin-bottom:2px; }
+  footer{
+    margin-top: 18px;
+    font-size: 12px;
+    color:#b98299;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🌸 감성 플라워캠</h1>
+  <p class="subtitle">손끝으로 그리고, 얼굴엔 꽃 화관을 씌우고, 손을 펴면 흩날려요</p>
+
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
+      <div class="hud">
+        <span class="pill off" id="pillHand">✋ 손 인식 대기중</span>
+        <span class="pill off" id="pillFace">🙂 얼굴 인식 대기중</span>
+      </div>
+    </div>
+
+    <div class="overlay-panel" id="startPanel">
+      <div class="flower-emoji">💐</div>
+      <p>웹캠으로 손동작과 얼굴을 인식해서<br/>실시간으로 예쁜 꽃 이펙트를 그려주는 앱이에요.<br/>카메라 사용을 허락해주세요!</p>
+      <button class="btn" id="startBtn">카메라 시작하기</button>
+      <p id="startError" class="err"></p>
+    </div>
+
+    <div class="overlay-panel hidden" id="loadingPanel">
+      <div class="spinner"></div>
+      <p id="loadingText">꽃씨를 심는 중이에요... (AI 모델을 불러오고 있어요)</p>
+    </div>
+  </div>
+
+  <div class="guide">
+    <div class="card"><b>🌼 포인팅 그리기</b>검지 손가락을 움직이면 손끝을 따라 꽃과 나뭇잎, 반짝이가 피어나요.</div>
+    <div class="card"><b>👑 꽃 화관</b>얼굴을 비추면 머리 위에 살랑거리는 꽃 화관이 자동으로 씌워져요.</div>
+    <div class="card"><b>🌷 흩뿌리기</b>손바닥을 활짝 펴면 화면의 꽃들이 사방으로 흩날리며 사라져요.</div>
+  </div>
+  <footer>MediaPipe Hand / Face Landmarker 기반 · 카메라 영상은 저장되지 않고 브라우저에서만 처리됩니다</footer>
+</div>
+
+<script type="module">
+import { FilesetResolver, HandLandmarker, FaceLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+/* ---------------------------------------------------------------------- */
+/* 0. DOM refs                                                            */
+/* ---------------------------------------------------------------------- */
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const stage = document.getElementById('stage');
+const startPanel = document.getElementById('startPanel');
+const loadingPanel = document.getElementById('loadingPanel');
+const loadingText = document.getElementById('loadingText');
+const startBtn = document.getElementById('startBtn');
+const startError = document.getElementById('startError');
+const pillHand = document.getElementById('pillHand');
+const pillFace = document.getElementById('pillFace');
+
+/* ---------------------------------------------------------------------- */
+/* 1. Flower SVG assets (hand-authored SVG, encoded as data URIs)         */
+/* ---------------------------------------------------------------------- */
+const SVG_TEMPLATES = {
+  daisy: (c) => `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <defs>
+      <radialGradient id='p' cx='50%' cy='30%' r='75%'>
+        <stop offset='0%' stop-color='#FFFFFF'/>
+        <stop offset='100%' stop-color='${c.petal}'/>
+      </radialGradient>
+      <radialGradient id='ctr' cx='35%' cy='35%' r='65%'>
+        <stop offset='0%' stop-color='#FFF4B8'/>
+        <stop offset='100%' stop-color='${c.center}'/>
+      </radialGradient>
+    </defs>
+    <g fill='url(#p)'>
+      <ellipse cx='50' cy='20' rx='9' ry='19'/>
+      <ellipse cx='50' cy='20' rx='9' ry='19' transform='rotate(45 50 50)'/>
+      <ellipse cx='50' cy='20' rx='9' ry='19' transform='rotate(90 50 50)'/>
+      <ellipse cx='50' cy='20' rx='9' ry='19' transform='rotate(135 50 50)'/>
+      <ellipse cx='50' cy='20' rx='9' ry='19' transform='rotate(180 50 50)'/>
+      <ellipse cx='50' cy='20' rx='9' ry='19' transform='rotate(225 50 50)'/>
+      <ellipse cx='50' cy='20' rx='9' ry='19' transform='rotate(270 50 50)'/>
+      <ellipse cx='50' cy='20' rx='9' ry='19' transform='rotate(315 50 50)'/>
+    </g>
+    <circle cx='50' cy='50' r='13' fill='url(#ctr)'/>
+  </svg>`,
+
+  rose: (c) => `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <defs>
+      <linearGradient id='r' x1='0%' y1='0%' x2='30%' y2='100%'>
+        <stop offset='0%' stop-color='${c.light}'/>
+        <stop offset='100%' stop-color='${c.dark}'/>
+      </linearGradient>
+    </defs>
+    <g fill='url(#r)' stroke='${c.dark}' stroke-width='0.6' stroke-opacity='0.35'>
+      <path d='M50,50 C33,45 30,18 50,16 C70,18 67,45 50,50 Z' transform='rotate(0 50 50)'/>
+      <path d='M50,50 C33,45 30,18 50,16 C70,18 67,45 50,50 Z' transform='rotate(60 50 50)'/>
+      <path d='M50,50 C33,45 30,18 50,16 C70,18 67,45 50,50 Z' transform='rotate(120 50 50)'/>
+      <path d='M50,50 C33,45 30,18 50,16 C70,18 67,45 50,50 Z' transform='rotate(180 50 50)'/>
+      <path d='M50,50 C33,45 30,18 50,16 C70,18 67,45 50,50 Z' transform='rotate(240 50 50)'/>
+      <path d='M50,50 C33,45 30,18 50,16 C70,18 67,45 50,50 Z' transform='rotate(300 50 50)'/>
+    </g>
+    <g fill='${c.dark}' opacity='0.9'>
+      <path d='M50,50 C41,47 39,31 50,29 C61,31 59,47 50,50 Z' transform='rotate(30 50 50)'/>
+      <path d='M50,50 C41,47 39,31 50,29 C61,31 59,47 50,50 Z' transform='rotate(90 50 50)'/>
+      <path d='M50,50 C41,47 39,31 50,29 C61,31 59,47 50,50 Z' transform='rotate(150 50 50)'/>
+      <path d='M50,50 C41,47 39,31 50,29 C61,31 59,47 50,50 Z' transform='rotate(210 50 50)'/>
+      <path d='M50,50 C41,47 39,31 50,29 C61,31 59,47 50,50 Z' transform='rotate(270 50 50)'/>
+    </g>
+    <circle cx='50' cy='50' r='5' fill='${c.dark}'/>
+  </svg>`,
+
+  sakura: (c) => `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <defs>
+      <radialGradient id='s' cx='50%' cy='75%' r='75%'>
+        <stop offset='0%' stop-color='${c.light}'/>
+        <stop offset='100%' stop-color='${c.dark}'/>
+      </radialGradient>
+    </defs>
+    <g fill='url(#s)'>
+      <path d='M50,50 C39,45 37,29 45,19 C47,25 50,25 50,21 C50,25 53,25 55,19 C63,29 61,45 50,50 Z' transform='rotate(0 50 50)'/>
+      <path d='M50,50 C39,45 37,29 45,19 C47,25 50,25 50,21 C50,25 53,25 55,19 C63,29 61,45 50,50 Z' transform='rotate(72 50 50)'/>
+      <path d='M50,50 C39,45 37,29 45,19 C47,25 50,25 50,21 C50,25 53,25 55,19 C63,29 61,45 50,50 Z' transform='rotate(144 50 50)'/>
+      <path d='M50,50 C39,45 37,29 45,19 C47,25 50,25 50,21 C50,25 53,25 55,19 C63,29 61,45 50,50 Z' transform='rotate(216 50 50)'/>
+      <path d='M50,50 C39,45 37,29 45,19 C47,25 50,25 50,21 C50,25 53,25 55,19 C63,29 61,45 50,50 Z' transform='rotate(288 50 50)'/>
+    </g>
+    <g fill='#FFDD66'>
+      <circle cx='50' cy='50' r='4.2'/>
+      <circle cx='45.5' cy='45.5' r='1.3'/>
+      <circle cx='54.5' cy='45.5' r='1.3'/>
+      <circle cx='45.5' cy='54.5' r='1.3'/>
+      <circle cx='54.5' cy='54.5' r='1.3'/>
+    </g>
+  </svg>`,
+
+  leaf: (c) => `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <defs>
+      <linearGradient id='l' x1='0%' y1='0%' x2='100%' y2='100%'>
+        <stop offset='0%' stop-color='${c.light}'/>
+        <stop offset='100%' stop-color='${c.dark}'/>
+      </linearGradient>
+    </defs>
+    <path d='M50,92 C18,72 18,18 50,8 C82,18 82,72 50,92 Z' fill='url(#l)'/>
+    <path d='M50,86 L50,14' stroke='${c.dark}' stroke-width='2' opacity='0.55' fill='none'/>
+    <path d='M50,30 L33,19 M50,46 L30,38 M50,62 L32,57 M50,30 L67,19 M50,46 L70,38 M50,62 L68,57'
+      stroke='${c.dark}' stroke-width='1.3' opacity='0.4' fill='none'/>
+  </svg>`,
+
+  sparkle: (c) => `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+    <defs>
+      <radialGradient id='sp' cx='50%' cy='50%' r='50%'>
+        <stop offset='0%' stop-color='#FFFFFF'/>
+        <stop offset='55%' stop-color='${c.color}'/>
+        <stop offset='100%' stop-color='${c.color}' stop-opacity='0'/>
+      </radialGradient>
+    </defs>
+    <path d='M50,4 C52,34 66,48 96,50 C66,52 52,66 50,96 C48,66 34,52 4,50 C34,48 48,34 50,4 Z' fill='url(#sp)'/>
+    <circle cx='50' cy='50' r='6.5' fill='#FFFFFF'/>
+  </svg>`,
+};
+
+const COLOR_VARIANTS = {
+  daisy:  [ {petal:'#FFD9E8', center:'#FFB100'}, {petal:'#E8E1FF', center:'#FFC93C'}, {petal:'#FFFFFF', center:'#FF8C42'} ],
+  rose:   [ {light:'#FFA6C4', dark:'#E85D8A'}, {light:'#FFB9AD', dark:'#E8543D'}, {light:'#FFD1E8', dark:'#D6488F'} ],
+  sakura: [ {light:'#FFE3EE', dark:'#FFAFCB'}, {light:'#FFF0F5', dark:'#FF8FAE'}, {light:'#FFE9F5', dark:'#F98CC3'} ],
+  leaf:   [ {light:'#BCEB8E', dark:'#5FA052'}, {light:'#CFF5A8', dark:'#4C8C3F'}, {light:'#A9E0C4', dark:'#3E8F6B'} ],
+  sparkle:[ {color:'#FFE9A8'}, {color:'#FFFFFF'}, {color:'#FFC1E3'} ],
+};
+
+const FLOWER_IMAGES = {}; // type -> [HTMLImageElement, ...]
+
+function svgToImage(svgString){
+  const url = 'data:image/svg+xml;base64,' + btoa(svgString);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(img); // resolve anyway to avoid hanging the app
+    img.src = url;
+  });
+}
+
+async function preloadFlowerImages(){
+  const jobs = [];
+  for (const type of Object.keys(SVG_TEMPLATES)){
+    FLOWER_IMAGES[type] = [];
+    COLOR_VARIANTS[type].forEach((variant, i) => {
+      const svg = SVG_TEMPLATES[type](variant);
+      jobs.push(svgToImage(svg).then(img => { FLOWER_IMAGES[type][i] = img; }));
+    });
+  }
+  await Promise.all(jobs);
+}
+
+function randomFlowerImage(type){
+  const arr = FLOWER_IMAGES[type];
+  return arr[(Math.random() * arr.length) | 0];
+}
+
+/* ---------------------------------------------------------------------- */
+/* 2. Particle system (trail flowers / leaves / sparkles)                 */
+/* ---------------------------------------------------------------------- */
+const TRAIL_TYPES = ['daisy', 'rose', 'sakura', 'leaf', 'leaf', 'sparkle', 'sparkle'];
+
+class Particle{
+  constructor(x, y, type){
+    this.x = x; this.y = y;
+    this.type = type;
+    this.img = randomFlowerImage(type);
+    this.baseSize = 26 + Math.random() * 30; // random size
+    this.rotation = (Math.random() - 0.5) * Math.PI; // random tilt
+    this.rotSpeed = (Math.random() - 0.5) * 0.6;
+    this.baseAlpha = 0.82 + Math.random() * 0.18; // slight opacity variance
+    this.scale = 0;
+    this.targetScale = 1;
+    this.age = 0;
+    this.growDuration = 0.2; // 0.2s pop-in
+    this.life = 3.5 + Math.random() * 2.5; // seconds before natural fade
+    this.fadeDuration = 1.0;
+    this.mode = 'grow'; // grow -> alive -> fading -> scatter -> dead
+    this.alpha = 0;
+    this.vx = 0; this.vy = 0;
+    this.dead = false;
+  }
+  scatter(){
+    if (this.mode === 'scatter') return;
+    this.mode = 'scatter';
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 160 + Math.random() * 260;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.rotSpeed = (Math.random() - 0.5) * 10;
+    this.scatterAge = 0;
+    this.scatterLife = 0.9 + Math.random() * 0.5;
+  }
+  update(dt){
+    this.age += dt;
+    if (this.mode === 'grow'){
+      const t = Math.min(1, this.age / this.growDuration);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic pop
+      this.scale = eased * this.targetScale;
+      this.alpha = eased * this.baseAlpha;
+      this.rotation += this.rotSpeed * dt;
+      if (t >= 1) this.mode = 'alive';
+    } else if (this.mode === 'alive'){
+      this.scale = this.targetScale + Math.sin(this.age * 2) * 0.02;
+      this.rotation += this.rotSpeed * dt * 0.3;
+      if (this.age >= this.life){
+        this.mode = 'fading';
+        this.fadeStart = this.age;
+      }
+    } else if (this.mode === 'fading'){
+      const t = Math.min(1, (this.age - this.fadeStart) / this.fadeDuration);
+      this.alpha = this.baseAlpha * (1 - t);
+      this.rotation += this.rotSpeed * dt * 0.3;
+      if (t >= 1) this.dead = true;
+    } else if (this.mode === 'scatter'){
+      this.scatterAge += dt;
+      this.vy += 90 * dt; // gentle gravity for a natural scatter arc
+      this.vx *= (1 - 0.6 * dt);
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.rotation += this.rotSpeed * dt;
+      const t = Math.min(1, this.scatterAge / this.scatterLife);
+      this.alpha = this.baseAlpha * (1 - t);
+      this.scale = this.targetScale * (1 - 0.15 * t);
+      if (t >= 1) this.dead = true;
+    }
+  }
+  draw(ctx){
+    if (!this.img || !this.img.complete) return;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, this.alpha);
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    const s = this.baseSize * this.scale;
+    ctx.drawImage(this.img, -s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+}
+
+let particles = [];
+const MAX_PARTICLES = 160;
+
+function spawnParticle(x, y){
+  if (particles.length >= MAX_PARTICLES) particles.shift();
+  const type = TRAIL_TYPES[(Math.random() * TRAIL_TYPES.length) | 0];
+  const jitterX = (Math.random() - 0.5) * 14;
+  const jitterY = (Math.random() - 0.5) * 14;
+  particles.push(new Particle(x + jitterX, y + jitterY, type));
+}
+
+function scatterAllParticles(){
+  particles.forEach(p => p.scatter());
+}
+
+/* ---------------------------------------------------------------------- */
+/* 3. Flower crown (face)                                                 */
+/* ---------------------------------------------------------------------- */
+const CROWN_LAYOUT = [
+  { dx: -0.62, dy: 0.10, type: 'leaf',    size: 0.60, rot: -35 },
+  { dx: -0.40, dy: -0.14, type: 'daisy',  size: 0.55, rot: -12 },
+  { dx: -0.16, dy: -0.28, type: 'rose',   size: 0.70, rot: 4 },
+  { dx: 0.00,  dy: -0.38, type: 'sakura', size: 0.42, rot: 0 },
+  { dx: 0.16,  dy: -0.26, type: 'daisy',  size: 0.52, rot: -6 },
+  { dx: 0.40,  dy: -0.12, type: 'sakura', size: 0.50, rot: 14 },
+  { dx: 0.62,  dy: 0.10,  type: 'leaf',   size: 0.58, rot: 35 },
+  { dx: -0.26, dy: -0.40, type: 'sparkle', size: 0.28, rot: 0 },
+  { dx: 0.28,  dy: -0.40, type: 'sparkle', size: 0.26, rot: 0 },
+  { dx: -0.50, dy: -0.06, type: 'leaf',   size: 0.34, rot: -55 },
+  { dx: 0.50,  dy: -0.06, type: 'leaf',   size: 0.34, rot: 55 },
+].map(item => ({
+  ...item,
+  img: null, // resolved after preload
+  swayPhase: Math.random() * Math.PI * 2,
+  swaySpeed: 1.0 + Math.random() * 0.8,
+}));
+
+function attachCrownImages(){
+  CROWN_LAYOUT.forEach(item => { item.img = randomFlowerImage(item.type); });
+}
+
+// smoothed head tracking state
+const head = { x: 0, y: 0, width: 0, angle: 0, alpha: 0, ready: false };
+
+function updateCrownAnchor(faceLandmarks, cw, ch, dt){
+  if (faceLandmarks){
+    const top = faceLandmarks[10];
+    const templeL = faceLandmarks[127];
+    const templeR = faceLandmarks[356];
+    const eyeL = faceLandmarks[33];
+    const eyeR = faceLandmarks[263];
+
+    const topPx = { x: top.x * cw, y: top.y * ch };
+    const tlPx = { x: templeL.x * cw, y: templeL.y * ch };
+    const trPx = { x: templeR.x * cw, y: templeR.y * ch };
+    const elPx = { x: eyeL.x * cw, y: eyeL.y * ch };
+    const erPx = { x: eyeR.x * cw, y: eyeR.y * ch };
+
+    const width = Math.hypot(trPx.x - tlPx.x, trPx.y - tlPx.y);
+    const angle = Math.atan2(erPx.y - elPx.y, erPx.x - elPx.x);
+
+    const smoothing = head.ready ? 0.25 : 1.0;
+    head.x += (topPx.x - head.x) * smoothing;
+    head.y += (topPx.y - head.y) * smoothing;
+    head.width += (width - head.width) * smoothing;
+    head.angle += (angle - head.angle) * smoothing;
+    head.ready = true;
+    head.alpha = Math.min(1, head.alpha + dt * 4);
+  } else {
+    head.alpha = Math.max(0, head.alpha - dt * 3);
+  }
+}
+
+let windTime = 0;
+function drawCrown(ctx, dt){
+  if (head.alpha <= 0.01 || head.width <= 0) return;
+  windTime += dt;
+  const cos = Math.cos(head.angle);
+  const sin = Math.sin(head.angle);
+
+  CROWN_LAYOUT.forEach(item => {
+    const sway = Math.sin(windTime * item.swaySpeed + item.swayPhase) * 0.05;
+    const rdx = item.dx * head.width;
+    const rdy = (item.dy + sway * 0.3) * head.width;
+    const rx = rdx * cos - rdy * sin;
+    const ry = rdx * sin + rdy * cos;
+    const px = head.x + rx;
+    const py = head.y + ry;
+    const size = item.size * head.width;
+    const rot = head.angle + (item.rot * Math.PI / 180) + sway;
+
+    if (!item.img || !item.img.complete) return;
+    ctx.save();
+    ctx.globalAlpha = head.alpha;
+    ctx.translate(px, py);
+    ctx.rotate(rot);
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.drawImage(item.img, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* 4. Hand gesture helpers                                                */
+/* ---------------------------------------------------------------------- */
+const handState = {}; // per-hand-slot open/closed + last spawn point
+
+function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function isHandOpen(lm){
+  const wrist = lm[0];
+  const mcps = [5, 9, 13, 17].map(i => lm[i]);
+  const tips = [8, 12, 16, 20].map(i => lm[i]);
+  const pips = [6, 10, 14, 18].map(i => lm[i]);
+  const handScale = dist(wrist, lm[9]) || 0.001;
+
+  let extendedCount = 0;
+  for (let i = 0; i < 4; i++){
+    if (dist(wrist, tips[i]) > dist(wrist, pips[i]) * 1.12) extendedCount++;
+  }
+  const spread = dist(tips[0], tips[3]) / handScale;
+  return extendedCount >= 4 && spread > 1.5;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 5. MediaPipe setup                                                     */
+/* ---------------------------------------------------------------------- */
+let handLandmarker = null;
+let faceLandmarker = null;
+
+async function createLandmarkers(){
+  const vision = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+  );
+
+  async function tryCreate(factory, modelUrl, extra){
+    try{
+      return await factory.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
+        runningMode: 'VIDEO',
+        ...extra,
+      });
+    } catch (e){
+      return await factory.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: modelUrl, delegate: 'CPU' },
+        runningMode: 'VIDEO',
+        ...extra,
+      });
+    }
+  }
+
+  handLandmarker = await tryCreate(
+    HandLandmarker,
+    'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+    { numHands: 2 }
+  );
+
+  faceLandmarker = await tryCreate(
+    FaceLandmarker,
+    'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+    { numFaces: 1, outputFaceBlendshapes: false, outputFacialTransformationMatrixes: false }
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* 6. Camera setup                                                        */
+/* ---------------------------------------------------------------------- */
+async function startCamera(){
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+    audio: false,
+  });
+  video.srcObject = stream;
+  await new Promise(resolve => {
+    video.onloadedmetadata = () => resolve();
+  });
+  await video.play();
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  stage.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 7. Main loop                                                           */
+/* ---------------------------------------------------------------------- */
+let lastVideoTime = -1;
+let lastFrameTs = performance.now();
+let running = false;
+
+function setPill(el, active, text){
+  el.textContent = text;
+  el.classList.toggle('on', active);
+  el.classList.toggle('off', !active);
+}
+
+function processResults(nowMs){
+  let handResult = null, faceResult = null;
+  if (video.currentTime !== lastVideoTime){
+    lastVideoTime = video.currentTime;
+    handResult = handLandmarker.detectForVideo(video, nowMs);
+    faceResult = faceLandmarker.detectForVideo(video, nowMs);
+  }
+  return { handResult, faceResult };
+}
+
+function loop(nowMs){
+  if (!running) return;
+  requestAnimationFrame(loop);
+
+  const dt = Math.min(0.05, (nowMs - lastFrameTs) / 1000);
+  lastFrameTs = nowMs;
+
+  const cw = canvas.width, ch = canvas.height;
+  if (cw === 0 || ch === 0) return;
+
+  const { handResult, faceResult } = processResults(nowMs);
+
+  // --- hands: trail drawing + open-hand scatter ---
+  if (handResult){
+    const hands = handResult.landmarks || [];
+    setPill(pillHand, hands.length > 0, hands.length > 0 ? `✋ 손 ${hands.length}개 인식중` : '✋ 손 인식 대기중');
+
+    const seenSlots = new Set();
+    hands.forEach((lm, idx) => {
+      seenSlots.add(idx);
+      if (!handState[idx]) handState[idx] = { wasOpen: false, lastSpawn: null, cooldown: 0 };
+      const st = handState[idx];
+      st.cooldown = Math.max(0, st.cooldown - dt);
+
+      const open = isHandOpen(lm);
+      if (open && !st.wasOpen && st.cooldown <= 0){
+        scatterAllParticles();
+        st.cooldown = 1.1;
+      }
+      st.wasOpen = open;
+
+      if (!open){
+        const tip = lm[8];
+        const x = tip.x * cw, y = tip.y * ch;
+        if (!st.lastSpawn || dist(st.lastSpawn, { x, y }) > 16){
+          spawnParticle(x, y);
+          st.lastSpawn = { x, y };
+        }
+      } else {
+        st.lastSpawn = null;
+      }
+    });
+    Object.keys(handState).forEach(key => { if (!seenSlots.has(Number(key))) delete handState[key]; });
+  }
+
+  // --- face: crown anchor ---
+  if (faceResult){
+    const faces = faceResult.faceLandmarks || [];
+    setPill(pillFace, faces.length > 0, faces.length > 0 ? '🙂 얼굴 인식중' : '🙂 얼굴 인식 대기중');
+    updateCrownAnchor(faces[0] || null, cw, ch, dt);
+  }
+
+  // --- update + render ---
+  particles.forEach(p => p.update(dt));
+  particles = particles.filter(p => !p.dead);
+
+  ctx.clearRect(0, 0, cw, ch);
+  particles.forEach(p => p.draw(ctx));
+  drawCrown(ctx, dt);
+}
+
+/* ---------------------------------------------------------------------- */
+/* 8. Boot sequence                                                       */
+/* ---------------------------------------------------------------------- */
+startBtn.addEventListener('click', async () => {
+  startBtn.disabled = true;
+  startError.textContent = '';
+  startPanel.classList.add('hidden');
+  loadingPanel.classList.remove('hidden');
+
+  try{
+    loadingText.textContent = '카메라를 켜는 중이에요...';
+    await startCamera();
+
+    loadingText.textContent = '꽃씨를 심는 중이에요... (AI 모델을 불러오고 있어요)';
+    await Promise.all([ preloadFlowerImages(), createLandmarkers() ]);
+    attachCrownImages();
+
+    loadingPanel.classList.add('hidden');
+    running = true;
+    lastFrameTs = performance.now();
+    requestAnimationFrame(loop);
+  } catch (err){
+    console.error(err);
+    loadingPanel.classList.add('hidden');
+    startPanel.classList.remove('hidden');
+    startBtn.disabled = false;
+    startError.textContent = '카메라 또는 AI 모델을 불러오지 못했어요. 카메라 권한을 확인하고 다시 시도해주세요.';
+  }
+});
+</script>
+</body>
+</html>
