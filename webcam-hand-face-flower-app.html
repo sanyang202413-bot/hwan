@@ -108,6 +108,18 @@
     color:#ffb0c9;
     letter-spacing: 1px;
   }
+  .title-row{
+    display:flex;
+    align-items:baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content:center;
+  }
+  .credit{
+    font-family:'Gaegu', sans-serif;
+    font-size: 13px;
+    color:#c9a8b8;
+  }
   .btn{
     font-family:'Jua', sans-serif;
     font-size: 17px;
@@ -239,7 +251,10 @@
 
   <div class="overlay-panel" id="startPanel">
     <div class="flower-emoji">💐</div>
-    <h1>감성 플라워캠</h1>
+    <div class="title-row">
+      <h1>감성 플라워캠</h1>
+      <span class="credit">made by 기환</span>
+    </div>
     <p>웹캠으로 손동작을 인식해서<br/>실시간으로 예쁜 꽃 이펙트를 그려주는 앱이에요.</p>
     <p class="hint">☝️ 검지를 움직여 꽃을 그려요 (그린 꽃은 계속 남아요) · ✊→🖐️ 손을 오므렸다 펴면 꽃이 흩날려요 · 📸 마음에 드는 순간엔 사진을 찍어보세요</p>
     <button class="btn" id="startBtn">카메라 시작하기</button>
