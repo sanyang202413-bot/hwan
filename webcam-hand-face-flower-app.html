@@ -176,6 +176,44 @@
     transition: opacity .25s ease, transform .25s ease;
   }
   .toast.show{ opacity:1; transform: translateX(-50%) scaleX(-1) translateY(0); }
+
+  .preview-overlay{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap: 16px;
+    background: rgba(10,8,10,0.92);
+    padding: 24px;
+    transform: scaleX(-1); /* un-mirror the UI; the captured photo itself is already correctly oriented */
+    z-index: 5;
+  }
+  .preview-overlay.hidden{ display:none; }
+  .preview-overlay img{
+    max-width: min(90vw, 520px);
+    max-height: 58vh;
+    border-radius: 18px;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.5);
+    object-fit: contain;
+    background:#000;
+  }
+  .preview-question{
+    color:#fff;
+    font-family:'Jua', sans-serif;
+    font-size: 16px;
+    margin: 0;
+  }
+  .preview-actions{ display:flex; gap: 14px; }
+  .preview-btn{
+    font-family:'Jua', sans-serif;
+    font-size: 15px;
+    padding: 12px 24px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    transition: transform .15s ease;
+  }
+  .preview-btn:active{ transform: scale(0.96); }
+  .preview-btn.secondary{ background: rgba(255,255,255,0.15); color:#fff; border: 1px solid rgba(255,255,255,0.35); }
+  .preview-btn.primary{ background: linear-gradient(135deg, #ff9ebb, #ff6f9c); color:#fff; box-shadow: 0 8px 20px rgba(255,111,156,0.4); }
 </style>
 </head>
 <body>
@@ -189,6 +227,15 @@
   <div class="flash" id="flash"></div>
   <div class="toast" id="toast">사진이 저장되었어요 🌸</div>
   <button class="capture-btn hidden" id="captureBtn" title="사진 찍기" aria-label="사진 찍기"></button>
+
+  <div class="preview-overlay hidden" id="previewOverlay">
+    <img id="previewImg" alt="촬영된 사진" />
+    <p class="preview-question">이 사진을 저장하시겠어요?</p>
+    <div class="preview-actions">
+      <button class="preview-btn secondary" id="retakeBtn">다시 찍기</button>
+      <button class="preview-btn primary" id="saveBtn">저장하기</button>
+    </div>
+  </div>
 
   <div class="overlay-panel" id="startPanel">
     <div class="flower-emoji">💐</div>
@@ -224,6 +271,10 @@ const pillHand = document.getElementById('pillHand');
 const captureBtn = document.getElementById('captureBtn');
 const flashEl = document.getElementById('flash');
 const toastEl = document.getElementById('toast');
+const previewOverlay = document.getElementById('previewOverlay');
+const previewImg = document.getElementById('previewImg');
+const retakeBtn = document.getElementById('retakeBtn');
+const saveBtn = document.getElementById('saveBtn');
 
 /* ---------------------------------------------------------------------- */
 /* 1. Flower SVG assets (hand-authored SVG, encoded as data URIs)         */
@@ -833,11 +884,12 @@ function showToast(msg){
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
+let pendingPhotoDataUrl = null;
+
 // Composites the current video frame + flower canvas exactly as shown on
-// screen (mirrored, cover-cropped) into a PNG and triggers a normal browser
-// download. A page can't reach into the OS Photos library directly, so
-// "downloads automatically" means it lands in the browser's Downloads
-// folder - the closest a web page is allowed to get.
+// screen (mirrored, cover-cropped) into a PNG, then shows a review overlay
+// instead of saving right away - the user gets a moment to look at the shot
+// before deciding to keep it.
 function capturePhoto(){
   if (!running) return;
   const w = canvas.width, h = canvas.height;
@@ -856,14 +908,6 @@ function capturePhoto(){
   octx.drawImage(canvas, 0, 0, w, h);
   octx.restore();
 
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const link = document.createElement('a');
-  link.download = `flowercam_${stamp}.png`;
-  link.href = out.toDataURL('image/png');
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
   captureBtn.classList.remove('flashing');
   void captureBtn.offsetWidth; // restart the pulse animation
   captureBtn.classList.add('flashing');
@@ -873,10 +917,59 @@ function capturePhoto(){
     flashEl.classList.remove('on');
     flashEl.classList.add('fading');
   });
+
+  pendingPhotoDataUrl = out.toDataURL('image/png');
+  previewImg.src = pendingPhotoDataUrl;
+  previewOverlay.classList.remove('hidden');
+}
+
+// On phones/tablets, a web page can't write into the OS Photo Gallery on
+// its own - there's no such permission for websites. The standard bridge
+// browsers provide is the Web Share API's file sharing: it opens the native
+// share sheet, and the user picks "Save Image"/"이미지 저장" from there,
+// which does save it into the device's gallery app. On desktop (or if that
+// API isn't available) it falls back to a normal file download instead.
+async function savePendingPhoto(){
+  if (!pendingPhotoDataUrl) return;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `flowercam_${stamp}.png`;
+
+  if (navigator.share && navigator.canShare){
+    try{
+      const blob = await (await fetch(pendingPhotoDataUrl)).blob();
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: '감성 플라워캠' });
+        showToast('사진을 저장했어요 🌸');
+        return;
+      }
+    } catch (e){
+      if (e && e.name === 'AbortError') return; // user cancelled the share sheet - don't also force a download
+      // otherwise fall through to the plain download below
+    }
+  }
+
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = pendingPhotoDataUrl;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
   showToast('사진이 저장되었어요 🌸');
 }
 
+function closePreview(){
+  previewOverlay.classList.add('hidden');
+  pendingPhotoDataUrl = null;
+  previewImg.src = '';
+}
+
 captureBtn.addEventListener('click', capturePhoto);
+retakeBtn.addEventListener('click', closePreview);
+saveBtn.addEventListener('click', async () => {
+  await savePendingPhoto();
+  closePreview();
+});
 </script>
 </body>
 </html>
