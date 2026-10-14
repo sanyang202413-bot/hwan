@@ -176,9 +176,10 @@
   .btn.reset{width:auto;padding:14px 16px;background:#1c1c22;color:var(--text);border:1px solid var(--line);font-size:15px;white-space:nowrap}
   .btn.reset.active{border-color:var(--pink);color:#ff6aa8;box-shadow:0 0 14px rgba(255,16,122,.25)}
   .btn.reset:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
-  .reset-menu{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:#1a1a20;border:1px solid var(--pink);box-shadow:0 0 24px rgba(255,16,122,.18)}
-  .reset-menu p{margin:0 0 2px;font-size:13px;font-weight:800;color:var(--text)}
-  .reset-menu .btn{padding:11px;font-size:14px}
+  .rm-overlay{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+  .rm-card{width:min(420px,100%);display:flex;flex-direction:column;gap:10px;padding:20px;border-radius:18px;background:#1a1a20;border:1px solid var(--pink);box-shadow:0 0 40px rgba(255,16,122,.25)}
+  .rm-card p{margin:0 0 4px;font-size:18px;font-weight:800;color:var(--text);text-align:center}
+  .rm-card .btn{padding:16px;font-size:17px}
   .rm-cancel{background:none;color:var(--muted);font-size:13px;font-weight:700;padding:4px}
   details{border:1px solid var(--line);border-radius:12px;padding:0 12px}
   details summary{cursor:pointer;padding:10px 0;font-size:13px;color:var(--muted);font-weight:700;list-style:none;display:flex;justify-content:space-between}
@@ -216,6 +217,9 @@
   .st.alive{background:rgba(59,130,246,.2);color:#7db3ff}
   .st.eliminated{background:var(--pink-soft);color:var(--pink)}
   .st.success{background:var(--teal-soft);color:var(--teal)}
+  .pl .del{flex:none;width:30px;height:30px;border-radius:8px;background:#24242c;color:#b4b4c0;font-size:13px;font-weight:800;border:1px solid var(--line);padding:0}
+  .pl .del:hover{color:#fff;border-color:#ff6aa8}
+  .pl .del.armed{width:auto;padding:0 8px;background:var(--pink);color:#fff;border-color:transparent}
   .pl.eliminated{opacity:.45}
   .empty{padding:22px 12px;text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:13px;line-height:1.6}
   .p-foot{padding:10px 18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.5}
@@ -307,6 +311,14 @@
 </div>
 
 <!-- ============ 결과 화면 ============ -->
+<div id="resetMenu" class="rm-overlay" hidden role="dialog" aria-modal="true" aria-label="리셋">
+  <div class="rm-card">
+    <p id="rmTitle">게임을 멈추고 다시 시작할까요?</p>
+    <button id="rmSame" class="btn primary">같은 참가자로 다시</button>
+    <button id="rmNew" class="btn ghost">참가자 새로 등록</button>
+    <button id="rmCancel" class="rm-cancel">취소</button>
+  </div>
+</div>
 <div id="resultScreen" class="screen" hidden>
   <div class="card result">
     <h1 id="resultTitle">게임 종료</h1>
@@ -413,12 +425,6 @@
         <button id="startBtn" class="btn primary">게임 시작</button>
         <button id="resetBtn" class="btn reset" disabled title="게임을 멈추고 처음 상태로 되돌립니다">↺ 리셋</button>
       </div>
-      <div id="resetMenu" class="reset-menu" hidden role="dialog" aria-label="리셋">
-        <p id="rmTitle">게임을 멈추고 다시 시작할까요?</p>
-        <button id="rmSame" class="btn primary">같은 참가자로 다시</button>
-        <button id="rmNew" class="btn ghost">참가자 새로 등록</button>
-        <button id="rmCancel" class="rm-cancel">취소</button>
-      </div>
 
       <details>
         <summary>세부 설정</summary>
@@ -457,7 +463,7 @@
           <label class="f" id="fsTolRow"><span class="lrow">부정출발 허용 거리 <b id="fsTolVal">0.5m</b></span>
             <input type="range" id="fsTol" min="0.3" max="1.5" step="0.1" value="0.5">
           </label>
-          <p class="hint" id="fsHint">손을 들어 등록할 때 선 자리를 기억해 두었다가, 게임 시작 전(등록 중, 3·2·1 동안)에 이 거리보다 더 앞으로 나오면 바로 탈락합니다. 출발선에 서서 등록하세요.</p>
+          <p class="hint" id="fsHint">손을 들어 등록할 때 선 자리를 발끝으로 기억해 두었다가, 게임 시작 전(등록 중, 3·2·1 동안)에 등록한 자리보다 이 거리 넘게 앞으로 나오면 바로 탈락합니다. 출발선 뒤에서 등록했다면 출발선까지는 나와도 됩니다.</p>
           <label class="f">카메라 선택
             <select id="camSelect"><option value="">기본 카메라</option></select>
           </label>
@@ -515,7 +521,7 @@
    - 파일을 더블클릭해 열면(file://) 브라우저 보안상 lib/를 읽을 수 없어 공식 CDN 사용
    - 인식 모델은 models/ 폴더에 파일이 있으면 그것을, 없으면 Google 공식 주소에서 받음
    ========================================================= */
-const APP_VERSION = "2026.10.14d";
+const APP_VERSION = "2026.10.14e";
 const MP_VERSION = "0.10.3";
 const SERVED = location.protocol === "http:" || location.protocol === "https:";
 const here = (p) => new URL(p, location.href).href;
@@ -538,13 +544,13 @@ const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Web0S|webOS|SmartTV|Tizen/i.t
 const CONFIG = {
   MAX_PLAYERS: 5,
   COLORS: ["#3b82f6", "#ff107a", "#00c896", "#ffb020", "#a78bfa"],
-  REGISTER_HOLD_MS: 700,     // 손을 이만큼(누적) 들고 있으면 등록
+  REGISTER_HOLD_MS: 400,     // 손을 이만큼(누적) 들고 있으면 등록 (손 들면 거의 바로)
   REGISTER_GAP_MS: 1000,     // 붙어 서 있어 뼈대가 잠깐 끊겨도 이 시간 안에 다시 잡히면 이어서 셈
   FALSE_START_MS: 400,       // 등록한 자리보다 앞으로 나온 상태가 이만큼 이어지면 부정출발
   START_DIST: 6,             // 기본 출발선 거리 (술래·카메라 → 출발선, m) · 최대 6m (노트북 카메라로 안정적으로 인식되는 거리)
   PASS_DIST: { adult: 2.5, child: 1.5 }, // 기본 통과 거리: 술래(카메라)까지 남은 거리가 이 안이면 통과 (m)
   FINISH_CONFIRM_FRAMES: 5,  // 통과 거리 안에 연속 5프레임(약 0.2초) 머물러야 통과 인정
-  LOST_MARGIN_M: 1.2,        // 통과 거리 1.2m 앞까지 왔다가 화면 옆으로 벗어나면 통과 인정
+  LOST_MARGIN_M: 0.5,        // 통과 거리 0.5m 앞까지 왔다가 화면 옆으로 벗어나면 통과 인정
   EDGE_X: 0.15,              // 화면 좌우 15% 안쪽에서 사라지면 '화면 옆으로 벗어남'으로 판단
   FINISH_LINE_Y: 0.8,       // 라인 모드: 발목이 화면 80% 아래로 내려오면 통과
   LOST_FINISH_MS: 1500,     // 가까이 오다 화면을 벗어난 경우 통과 인정 대기
@@ -588,6 +594,8 @@ const passDist = (p) => (p && p.type === "adult" ? Settings.data.passAdult : Set
 // 통과 기준 배율: 화면 속 크기는 거리에 반비례하므로 (출발선 거리 ÷ 통과 거리)배 커지면 통과
 const finishRatio = (p) => Settings.data.startDist / passDist(p);
 const fmtM = (v) => String(Math.round(v * 10) / 10);
+const KO_NUM = ["영", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구", "십"];
+const numKo = (n) => KO_NUM[n] ?? String(n); // 음성용: 1 → 일 (1번 → 일번)
 const fmtSec = (ms) => (ms / 1000).toFixed(2);
 const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -858,12 +866,12 @@ const Detector = {
 
 /* =========================================================
    참가자 신체 특성 기억 (등록할 때 기억 → 동선이 엇갈리거나 붙어 있어도 같은 번호로 추적)
-   - 옷 색 분포: 윗옷 위쪽 · 윗옷 아래쪽 · 허벅지(바지) 세 부분
+   - 색 분포: 머리(머리카락·얼굴색·모자) · 윗옷 위쪽 · 윗옷 아래쪽 · 허벅지(바지) 네 부분 (화면 가로 640점 화질로)
    - 체형: 어깨너비에 대한 몸통 길이 · 골반 너비 · 머리 높이 비율 (거리와 상관없이 일정)
    ========================================================= */
 const sampleCv = document.createElement("canvas");
 const sctx = sampleCv.getContext("2d", { willReadFrequently: true });
-const SW = 240; let SH = 135;
+const SW = 640; let SH = 360; // 멀리(6m) 선 어린이도 어깨너비 약 25점 → 옷 색을 또렷하게
 function sampleFrame() {
   if (!video.videoWidth) return null;
   SH = Math.max(1, Math.round(SW * video.videoHeight / video.videoWidth));
@@ -883,8 +891,10 @@ function regionHist(img, boxes, excl = []) { // excl: 앞사람이 가린 영역
   for (const [x0, y0, x1, y1] of boxes) {
     const sx0 = clamp(Math.floor(Math.min(x0, x1) * W), 0, W - 1), sx1 = clamp(Math.ceil(Math.max(x0, x1) * W), 0, W - 1);
     const sy0 = clamp(Math.floor(Math.min(y0, y1) * H), 0, H - 1), sy1 = clamp(Math.ceil(Math.max(y0, y1) * H), 0, H - 1);
-    const step = Math.max(1, Math.floor(Math.sqrt(((sx1 - sx0 + 1) * (sy1 - sy0 + 1)) / 300)));
-    for (let y = sy0; y <= sy1; y += step) for (let x = sx0; x <= sx1; x += step) {
+    // 상자 크기와 상관없이 최대 18×18점을 고르게 (가까이 와서 커져도 멀리 있을 때와 같은 기준으로 비교)
+    const bw = sx1 - sx0 + 1, bh = sy1 - sy0 + 1, gx = Math.min(18, bw), gy = Math.min(18, bh);
+    for (let iy = 0; iy < gy; iy++) for (let ix = 0; ix < gx; ix++) {
+      const x = sx0 + Math.floor(((ix + 0.5) * bw) / gx), y = sy0 + Math.floor(((iy + 0.5) * bh) / gy);
       if (excl.length) { const nx = (x + 0.5) / W, ny = (y + 0.5) / H; if (excl.some((e) => nx > e[0] && nx < e[2] && ny > e[1] && ny < e[3])) continue; }
       const i = (y * W + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
       const mx = Math.max(r, g, b), mn = Math.min(r, g, b), v = mx / 255, sat = mx ? (mx - mn) / mx : 0;
@@ -906,11 +916,15 @@ function regionHist(img, boxes, excl = []) { // excl: 앞사람이 가린 영역
 function bodyFeatures(lm, img, excl = []) {
   const k = aspectHW(), ls = lm[11], rs = lm[12], lh = lm[23], rh = lm[24];
   const S = Math.hypot(ls.x - rs.x, (ls.y - rs.y) * k);
-  const f = { up: null, low: null, legs: null, shape: {} };
+  const f = { head: null, up: null, low: null, legs: null, shape: {} };
   if (S < 0.008) return f;
   const sm = mid(ls, rs), hm = mid(lh, rh), hipsOk = vis(lh) > 0.5 && vis(rh) > 0.5;
   if (hipsOk) { f.shape.torso = Math.hypot(sm.x - hm.x, (sm.y - hm.y) * k) / S; f.shape.hip = Math.hypot(lh.x - rh.x, (lh.y - rh.y) * k) / S; }
   if (vis(lm[0]) > 0.5) f.shape.head = Math.max(0.05, ((sm.y - lm[0].y) * k) / S);
+  if (img && vis(lm[0]) > 0.5) { // 머리: 코를 중심으로 머리카락~코 (얼굴색·머리색·모자·안경)
+    const nz = lm[0], Sy = S / k;
+    f.head = regionHist(img, [[nz.x - 0.3 * S, nz.y - 0.62 * Sy, nz.x + 0.3 * S, nz.y + 0.1 * Sy]], excl);
+  }
   if (!img || !hipsOk) return f;
   const xL = Math.min(ls.x, rs.x), xR = Math.max(ls.x, rs.x), w = xR - xL, th = hm.y - sm.y;
   if (th <= 0.01) return f;
@@ -934,7 +948,7 @@ function bodyBox(d) {
   return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad * 0.5];
 }
 const boxesOverlap = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
-const REGION_W = [["up", 0.45], ["low", 0.3], ["legs", 0.25]];
+const REGION_W = [["head", 0.2], ["up", 0.35], ["low", 0.25], ["legs", 0.2]];
 function histDist(a, b) { let bc = 0; for (let i = 0; i < HB; i++) bc += Math.sqrt(a[i] * b[i]); return Math.sqrt(Math.max(0, 1 - bc)); }
 // 옷 색 차이: 0(같은 옷) ~ 1(전혀 다른 옷), 비교할 부분이 없으면 null
 function appDist(f, ref) {
@@ -943,6 +957,18 @@ function appDist(f, ref) {
   for (const [key, wt] of REGION_W) if (f[key] && ref[key]) { s += wt * histDist(f[key].h, ref[key].h); w += wt; }
   return w ? s / w : null;
 }
+// 가장 잘 맞는 부분들만 본 색 차이 (다른 사람에게 일부가 가려 색이 섞인 경우에도 같은 사람이면 작게 나옴)
+function appCore(f, ref) {
+  if (!f || !ref) return null;
+  const ds = [];
+  for (const [key, wt] of REGION_W) if (f[key] && ref[key]) ds.push([histDist(f[key].h, ref[key].h), wt]);
+  if (!ds.length) return null;
+  ds.sort((a, b) => a[0] - b[0]);
+  const want = 0.6 * ds.reduce((t, [, w]) => t + w, 0);
+  let acc = 0, got = 0;
+  for (const [dv, w] of ds) { const take = Math.min(w, want - got); if (take <= 0) break; acc += dv * take; got += take; }
+  return acc / got;
+}
 // 체형 차이: 0(같은 체형) ~ 1, 비교할 수 없으면 null
 function shapeDist(f, ref) {
   if (!f || !ref) return null;
@@ -950,10 +976,10 @@ function shapeDist(f, ref) {
   for (const key of ["torso", "hip", "head"]) { const a = f.shape[key], b = ref.shape[key]; if (a > 0 && b > 0) { s += Math.abs(Math.log(a / b)); n++; } }
   return n ? Math.min(1, s / n / Math.log(1.5)) : null;
 }
-const hasColor = (f) => !!(f && (f.up || f.low || f.legs));
+const hasColor = (f) => !!(f && (f.head || f.up || f.low || f.legs));
 function featClone(f) {
   const c = (r) => r && { h: new Float32Array(r.h), rgb: r.rgb.slice() };
-  return { up: c(f?.up), low: c(f?.low), legs: c(f?.legs), shape: { ...(f?.shape || {}) } };
+  return { head: c(f?.head), up: c(f?.up), low: c(f?.low), legs: c(f?.legs), shape: { ...(f?.shape || {}) } };
 }
 function featBlend(acc, f, a) { // acc ← (1−a)·acc + a·f
   if (!acc || !f) return;
@@ -1025,12 +1051,20 @@ const Tracker = {
     if (lost < 400 && pos > 3.5) return Infinity; // 한 순간에 멀리 이동할 수는 없음
     const a1 = appDist(d.f, p.anchor), a2 = appDist(d.f, p.adapt);
     const app = a1 == null ? 0.3 : 0.65 * a1 + 0.35 * (a2 ?? a1); // 등록 때 기억(고정) 65% + 최근 모습 35%
-    if (lost > 1000 && a1 != null && app > 0.42) return Infinity; // 오래 안 보였다면 옷이 닮아야 같은 사람
+    // 한두 부분이 다른 사람에게 가려 색이 섞여도 같은 사람을 놓치지 않도록, 막을 때는 가장 잘 맞는 부분들로만 비교
+    const core = appCore(d.f, p.anchor), coreA = appCore(d.f, p.adapt), coreMin = core == null ? null : Math.min(core, coreA ?? core);
+    if (coreMin != null && coreMin > 0.55) return Infinity; // 옷·머리 색이 전혀 다르면 다른 사람
+    if (lost > 700 && coreMin != null && coreMin > 0.4) return Infinity; // 놓쳤다가 다시 찾을 때는 색이 닮아야 같은 사람
+    // 등록 중: 비킨 선수 자리에 다음 사람이 들어와도 앞 번호를 물려받지 않게 (색이 조금만 달라도 다른 사람으로)
+    if (Game.state === "registration" && !p.isPending && a1 != null && (a1 > 0.42 || (lost > 300 && a1 > 0.3))) return Infinity;
     const sh = shapeDist(d.f, p.anchor), shape = sh == null ? 0.3 : sh;
     const scale = Math.min(2, Math.abs(Math.log(d.shoulder / S)) / Math.log(1.6));
     const wPos = lost < 400 ? 1 : lost < 2000 ? 0.5 : 0.2, wScale = lost < 400 ? 0.6 : 0.25; // 오래 안 보였으면 위치보다 특성으로 다시 찾음
+    const wShape = 0.3 + 0.7 * clamp((d.shoulder * SW - 22) / 60, 0, 1); // 가까이 와서 몸이 크게 보이면 체형 비율이 정확 → 비중↑
+    // 실제 키(발끝~코 높이 × 거리): 옷이 같아도 키가 다르면 다른 사람
+    const tall = d.hPhys && p.hPhys ? Math.min(2, Math.abs(Math.log(d.hPhys / p.hPhys)) / Math.log(1.12)) : 0;
     // 아직 번호 없는 사람(등록 대기)은 조금 불리하게 → 애매하면 등록된 선수가 자기 뼈대를 먼저 가져감
-    return (p.isPending ? 0.25 : 0) + wPos * Math.min(pos, 4) + 2.4 * app + wScale * scale + 0.4 * shape;
+    return (p.isPending ? 0.25 : 0) + wPos * Math.min(pos, 4) + 2.4 * app + wScale * scale + wShape * shape + 0.5 * tall;
   },
   match(dets, players, now) {
     const n = players.length, m = dets.length;
@@ -1052,9 +1086,12 @@ const Tracker = {
         p.vy = (p.vy || 0) * 0.6 + ((d.cy - p.y) / dt) * 400;
       } else { p.vx = 0; p.vy = 0; }
       p.x = d.cx; p.y = d.cy; p.shoulder = d.shoulder; p.lastSeen = now; d.player = p; d.cost = C[i][j];
+
       // 다른 선수가 이 뼈대를 거의 같은 정도로 차지할 수 있었으면 '헷갈린 프레임' (판정에 쓰지 않음)
       let alt = Infinity; for (let o = 0; o < n; o++) if (o !== i) alt = Math.min(alt, C[o][j]);
       d.margin = alt - C[i][j];
+      // 실제 키 재료(발끝·코의 화면 높이) 기억: 누구인지 확실한 프레임만
+      if (!p.isPending && d.fy != null && vis(d.lm[0]) > 0.5 && d.margin >= 0.6 && !d.crowded) { (p.hRaw || (p.hRaw = [])).push([d.fy, d.lm[0].y]); if (p.hRaw.length > 40) p.hRaw.shift(); }
       // 기억 다듬기: 다른 사람과 겹치지 않고 확실히 같은 사람일 때만 (겹친 순간의 색이 섞이지 않도록)
       const isolated = dets.every((o) => o === d || Math.hypot(o.cx - d.cx, (o.cy - d.cy) * k) > 1.4 * Math.max(o.shoulder, d.shoulder));
       const a = appDist(d.f, p.anchor);
@@ -1075,6 +1112,73 @@ function clearOwner(d, strict = false) {
 }
 
 /* =========================================================
+   거리 재기: 발끝선 (노트북 카메라 기준, 바닥에 닿은 발끝의 화면 높이)
+   - 카메라 앞 바닥은 멀수록 화면 위쪽에 보임 → 발끝 높이 y = y0 + G ÷ 거리 (y0: 지평선 높이)
+   - 모두에게 같은 식을 쓰므로 같은 선에 선 사람은 키·몸집과 상관없이 같은 거리
+   - y0·G는 참가자들이 출발선(설정 거리)에서 등록하고 다가오는 동안 몸이 커지는 비율로 스스로 맞춤
+   - 술래 가까이 와서 발이 화면 아래로 벗어나면, 발이 보일 때 맞춰 둔 '몸 크기 ↔ 거리' 비율로 이어서 잼
+   ========================================================= */
+// 바닥에 닿은 발끝(두 발 중 화면에서 더 아래, 즉 카메라에 더 가까운 발끝)의 화면 높이, 안 보이면 null
+//  뒤꿈치는 발끝보다 한 뼘 뒤라 섞어 쓰면 거리가 튐 → 발끝만 씀
+function footY(lm) {
+  let y = null;
+  for (const i of [31, 32]) { const q = lm[i]; if (q && vis(q) > 0.5 && q.y < 0.985 && (y == null || q.y > y)) y = q.y; }
+  return y;
+}
+let uidSeq = 0;
+const Floor = {
+  PRIOR: 1, prior: 0.5, y0: 0.5, G: null, conf: 0, tick: 0, data: new Map(), // data: 선수 → 크기 비율 구간별 (발끝 높이) 평균
+  clear() { if (this.conf > 3) this.prior = this.y0; this.data.clear(); this.G = null; this.y0 = this.prior; this.conf = 0; }, // 카메라 기울기는 다음 참가자에게도 이어서 씀
+  drop(uid) { this.data.delete(uid); },
+  add(uid, r, y) {
+    if (!(r > 0.3 && r < 8) || !(y > 0 && y < 1)) return;
+    let bins = this.data.get(uid); if (!bins) this.data.set(uid, (bins = new Map()));
+    if (this.G != null) { const B = this.slope(uid); if (B != null && Math.abs(y - (this.y0 + B * r)) > 0.06) return; } // 발 인식이 튄 값은 버림
+    const key = Math.round(r / 0.06); let b = bins.get(key); if (!b) bins.set(key, (b = { n: 0, r: 0, y: 0 }));
+    if (b.n < 30) { b.n++; b.r += r; b.y += y; } else { b.r += r - b.r / b.n; b.y += y - b.y / b.n; }
+  },
+  stats(bins) { // 구간마다 평균을 한 점으로 (같은 자리에 오래 서 있어도 한쪽으로 쏠리지 않게)
+    let W = 0, Sr = 0, Srr = 0, Sy = 0, Sry = 0, lo = Infinity, hi = -Infinity;
+    for (const b of bins.values()) {
+      if (b.n < 2) continue;
+      const w = Math.min(b.n, 10), r = b.r / b.n, y = b.y / b.n;
+      W += w; Sr += w * r; Srr += w * r * r; Sy += w * y; Sry += w * r * y; lo = Math.min(lo, r); hi = Math.max(hi, r);
+    }
+    return { W, Sr, Srr, Sy, Sry, span: hi - lo };
+  },
+  solve(d0) { // 지평선 y0(모두 공통)과 선수별 기울기 B = G ÷ (등록한 거리)를 한꺼번에 맞춤
+    let num = this.PRIOR * this.prior, den = this.PRIOR;
+    const all = [];
+    for (const bins of this.data.values()) {
+      const st = this.stats(bins); if (st.W < 3) continue;
+      all.push(st);
+      if (st.span >= 0.18) { num += st.Sy - (st.Sr * st.Sry) / st.Srr; den += st.W - (st.Sr * st.Sr) / st.Srr; } // 1m쯤 다가온 사람부터 지평선 추정에 씀
+    }
+    this.y0 = clamp(num / den, -0.6, 0.95); this.conf = den - this.PRIOR;
+    const Bs = all.map((st) => (st.Sry - this.y0 * st.Sr) / st.Srr).filter((B) => B > 0.01);
+    this.G = Bs.length ? medianAvg(Bs) * d0 : null; // 참가자 대부분이 출발선에서 등록했다고 봄
+  },
+  slope(uid) { const bins = this.data.get(uid); if (!bins) return null; const st = this.stats(bins); return st.W >= 3 ? (st.Sry - this.y0 * st.Sr) / st.Srr : null; },
+  dist(y) { return this.G == null || y == null || y - this.y0 < 0.02 ? null : clamp(this.G / (y - this.y0), 0.3, 15); },
+  regDist(uid) { const B = this.slope(uid); return B != null && B > 0.01 && this.G != null ? clamp(this.G / B, 0.5, 15) : null; }, // 이 선수가 등록할 때 선 거리
+};
+// 선수까지 거리(m): 발끝이 보이면 발끝선으로, 안 보이면 '몸 크기 ↔ 거리' 비율로 이어서
+function playerDistance(p, det) {
+  const useBase = Game.state === "playing" && p.base; // 게임 중: 3·2·1 동안 출발선에서 잰 몸 크기 / 그 전: 등록 때 잰 몸 크기
+  const ref = useBase ? p.base : p.ref;
+  const r = ref ? sizeRatio(det.lm, ref) : p.baseShoulder ? det.shoulder / p.baseShoulder : null;
+  const df = det.df ?? null;
+  if (p.kScale == null) { // 기준 크기를 잰 거리
+    const d0 = Settings.data.startDist, reg = Floor.regDist(p.uid) ?? d0;
+    if (useBase) { const rb = p.ref ? sizeRatio2(p.base, p.ref) : null; p.kScale = p.baseDist ?? (rb ? reg / rb : d0); }
+    else p.kScale = reg;
+  }
+  if (df != null && r != null && !det.crowded && clearOwner(det)) p.kScale += (df * r - p.kScale) * 0.12; // 발이 보일 때 비율을 계속 맞춰 둠
+  const ds = r != null ? p.kScale / r : null;
+  return df ?? ds;
+}
+
+/* =========================================================
    부정출발: 손을 들어 등록할 때의 몸 크기 = 출발선에서의 크기
    - 어깨너비·골반너비·몸통·다리 길이를 함께 보고 가운데 값을 씀 (몸을 돌리거나 팔을 들어도 덜 흔들림)
    - 지금 크기 ÷ 등록 때 크기가 (출발선 ÷ (출발선 − 허용 거리))배를 넘으면 그만큼 앞으로 나온 것
@@ -1089,6 +1193,8 @@ function bodySizes(lm, k = aspectHW()) {
   if (ok(27) && ok(28)) out.leg = L(hm, mid(lm[27], lm[28]));
   return out;
 }
+// 두 몸 크기 기록의 비율 (a가 b보다 몇 배 크게 보였나)
+function sizeRatio2(a, b) { const r = []; for (const key in b) if (a[key] > 0) r.push(a[key] / b[key]); return r.length >= 2 ? medianAvg(r) : null; }
 function sizeRef(samples) { // 등록할 때(손 든 동안) 잰 몸 크기 → 부위별 가운데 값
   if (!samples || samples.length < 3) return null;
   const ref = {};
@@ -1141,10 +1247,10 @@ const UI = {
     $("timeBar").style.width = `${clamp(t / (Settings.data.time || 60), 0, 1) * 100}%`;
   },
   foot(text) { $("footHint").textContent = text; },
-  controls() { // 리셋 버튼: 게임 중이거나 등록된 참가자가 있을 때 사용 가능
+  controls() { // 리셋 버튼: 카메라가 켜진 뒤에는 언제든 사용 가능
     const active = Game.state === "countdown" || Game.state === "playing";
     const btn = $("resetBtn");
-    btn.disabled = !(active || (Game.state === "registration" && Game.players.length > 0));
+    btn.disabled = Game.state === "boot";
     btn.classList.toggle("active", active);
     if (btn.disabled) ResetMenu.close();
   },
@@ -1174,7 +1280,8 @@ const UI = {
         <div class="bar" style="background:${p.color}"></div>
         <div class="vest" style="background:${sigCss(p)}" title="기억한 옷 색"></div>
         <div class="info"><div class="name">${p.id}번 선수<button type="button" class="type ${p.type}" data-type-toggle="${p.id}" ${locked ? "disabled" : ""} title="눌러서 어린이·성인 바꾸기">${TYPE_LABEL[p.type]}</button></div><div class="sub">${sub}</div></div>
-        <span class="st ${away ? "unseen" : p.status}">${away ? "화면 밖" : ST[p.status]}</span></div>`;
+        <span class="st ${away ? "unseen" : p.status}">${away ? "화면 밖" : ST[p.status]}</span>
+        ${locked ? "" : `<button type="button" class="del${this.delArmed === p.id ? " armed" : ""}" data-del="${p.id}" title="참가자 삭제 (한 번 더 누르면 삭제)">${this.delArmed === p.id ? "삭제?" : "✕"}</button>`}</div>`;
     }).join("");
   },
 };
@@ -1184,6 +1291,7 @@ const UI = {
    ========================================================= */
 function resetProgress(p) {
   p.finishFrames = 0; p.ratio = null; p.ratioS = null; p.prog = null; p.dist = null;
+  p.dLast = null; p.dLastT = null; p.dBuf = []; p.dMed = null; p.glitch = 0; p.kScale = null; p.zoneAt = null;
   p.baseAnkle = null; p.ankleSamples = [];
 }
 // 표시값: 접근 방식은 술래(카메라)까지 남은 거리 m (출발선 거리 설정 기준 추정), 라인 방식은 남은 비율(%)
@@ -1331,7 +1439,7 @@ const HofScreen = {
       $("hofScreen").hidden = false;
       setTimeout(() => $("hofName").focus(), 80);
       Sfx.fanfare();
-      Voice.say(`이번 게임 1등! ${p.id}번 선수, ${(rec.ms / 1000).toFixed(1)}초. 이름을 입력해 주세요`, 1.05, 3500);
+      Voice.say(`일등! ${numKo(p.id)}번 선수, ${(rec.ms / 1000).toFixed(1)}초. 이름을 입력해 주세요`, 1.05, 3500);
     });
   },
   // 이름 등록 → 누적 순위 공개 (이름이 비어 있으면 입력칸을 흔들어 알림)
@@ -1385,16 +1493,23 @@ const HofScreen = {
    ========================================================= */
 const ResetMenu = {
   timer: null,
+  lastToggle: 0,
   open() {
-    const active = Game.state === "countdown" || Game.state === "playing";
-    const fs = !active && Game.players.some((p) => p.falseStart); // 등록 중 부정출발 → 참가자는 그대로 두고 판정만 지울 수 있게
-    $("rmTitle").textContent = active ? "게임을 멈추고 다시 시작할까요?" : fs ? "부정출발 판정을 지우고 같은 참가자로 다시 할까요?" : "등록한 참가자를 모두 지울까요?";
-    $("rmSame").hidden = !(active || fs);
+    const active = Game.state === "countdown" || Game.state === "playing", done = Game.state === "result";
+    const fs = Game.state === "registration" && Game.players.some((p) => p.falseStart); // 등록 중 부정출발 → 참가자는 그대로 두고 판정만 지울 수 있게
+    const has = Game.players.length > 0;
+    $("rmTitle").textContent = active ? "게임을 멈추고 다시 시작할까요?" : fs ? "부정출발 판정을 지우고 같은 참가자로 다시 할까요?" : done ? "다시 시작할까요?" : has ? "등록한 참가자를 모두 지울까요?" : "처음 상태로 되돌릴까요?";
+    $("rmSame").hidden = !((active || fs || done) && has);
+    $("rmNew").textContent = has ? "참가자 새로 등록" : "처음부터 다시";
     $("resetMenu").hidden = false;
-    clearTimeout(this.timer); this.timer = setTimeout(() => this.close(), 8000);
+    clearTimeout(this.timer); this.timer = setTimeout(() => this.close(), 20000);
+    setTimeout(() => (($("rmSame").hidden ? $("rmNew") : $("rmSame")).focus()), 30);
   },
   close() { clearTimeout(this.timer); $("resetMenu").hidden = true; },
-  toggle() { if ($("resetMenu").hidden) this.open(); else this.close(); },
+  toggle() { // 손가락이 두 번 눌리는 경우(터치 화면) 바로 다시 닫히지 않게
+    const t = performance.now(); if (t - this.lastToggle < 400) return; this.lastToggle = t;
+    if ($("resetMenu").hidden) this.open(); else this.close();
+  },
 };
 
 /* =========================================================
@@ -1428,8 +1543,9 @@ const Game = {
   promptNext() {
     const n = this.players.length + 1;
     UI.message(`${n}번 참가자, 손을 들어 주세요`, { ms: 3500, color: "#7db3ff" });
+    this.lastPrompt = n;
     UI.foot(`출발선에서 손을 머리 위로 들면 ${n}번으로 등록됩니다.` + (Settings.data.falseStart ? " 등록한 뒤 앞으로 나오면 부정출발이에요." : " 다 모이면 게임 시작을 누르세요."));
-    Voice.say(`${n}번 참가자, 손을 들어 주세요`, 1.05, 2200);
+    Voice.say(`${numKo(n)}번 참가자, 손을 들어 주세요`, 1.05, 2200);
   },
   // 등록: 화면 속 '아직 번호 없는 사람'을 모두 따라가며 사람마다 손 든 시간을 따로 셈
   //  - 붙어 서 있어 뼈대가 잠깐 끊기거나 손 인식이 깜빡여도 처음부터 다시 세지 않고 이어서 셈
@@ -1459,21 +1575,31 @@ const Game = {
       if (u.hold <= 0) { u.holdF = null; u.holdN = 0; u.sizes = []; }
     }
     this.pending = this.pending.filter((u) => now - u.lastSeen < 1500);
+    // 등록한 선수가 그 자리에 그대로 서 있는 동안 몸 크기를 더 모아 기준을 다듬음 (최대 60번)
+    for (const d of dets) {
+      const p = d.player;
+      if (!p || p.status !== "ready" || !p.refSamples || p.refSamples.length >= 60 || d.crowded || !clearOwner(d)) continue;
+      if (Math.abs(d.cy - p.regCy) > 0.2 * d.shoulder || Math.abs(Math.log(d.shoulder / p.regS)) > 0.06) continue; // 움직였으면 모으지 않음
+      const sz = bodySizes(d.lm, k); if (!sz) continue;
+      p.refSamples.push(sz); if (p.refSamples.length % 5 === 0) p.ref = sizeRef(p.refSamples) || p.ref;
+    }
     if (full) return;
     const ready = this.pending.filter((u) => u.det && u.hold >= CONFIG.REGISTER_HOLD_MS).sort((a, b) => b.hold - a.hold);
     for (const u of ready) {
       if (this.players.length >= CONFIG.MAX_PLAYERS) break;
-      // 방금까지 등록된 선수가 있던 바로 그 자리의 뼈대(한 사람을 두 번 잡은 것)는 등록하지 않음
-      if (this.players.some((p) => now - p.lastSeen < 1500 && Math.hypot(p.x - u.x, (p.y - u.y) * k) < 0.6 * Math.max(p.shoulder, u.shoulder))) { u.hold = 0; continue; }
+      // 지금 바로 그 자리에 같은 크기·같은 색의 선수가 있으면 한 사람을 두 번 잡은 것 → 등록하지 않음
+      if (this.players.some((p) => now - p.lastSeen < 300 && Math.hypot(p.x - u.x, (p.y - u.y) * k) < 0.35 * Math.max(p.shoulder, u.shoulder)
+        && Math.abs(Math.log(p.shoulder / u.shoulder)) < 0.15 && !((appDist(u.holdF || u.anchor, p.anchor) ?? 0) > 0.2))) { u.hold = 0; continue; }
       this.register(u, now);
     }
   },
   register(src, now, feats) { // src: 등록 대기 중인 사람 또는 뼈대
     const id = this.players.length + 1;
     const anchor = featClone(feats || src.holdF || src.anchor || src.f); // 이 사람의 신체 특성 기억 (등록 뒤 서 있는 동안 더 다듬음)
-    const p = { id, color: CONFIG.COLORS[id - 1], status: "ready", type: Settings.data.defaultType, x: src.x ?? src.cx, y: src.y ?? src.cy, vx: src.vx || 0, vy: src.vy || 0, shoulder: src.shoulder,
+    const p = { id, uid: ++uidSeq, color: CONFIG.COLORS[id - 1], status: "ready", type: Settings.data.defaultType, x: src.x ?? src.cx, y: src.y ?? src.cy, vx: src.vx || 0, vy: src.vy || 0, shoulder: src.shoulder,
       anchor, adapt: featClone(anchor), basePose: null, baseShoulder: null, shoulderSamples: [], overCount: 0, moveRatio: null, lastSeen: now, finishTime: null,
-      ref: sizeRef(src.sizes), fsArmed: true, fsBuf: [], fsSince: null, falseStart: false }; // ref: 등록한 자리(출발선)에서의 몸 크기
+      ref: sizeRef(src.sizes), refSamples: (src.sizes || []).slice(), regCy: src.y ?? src.cy, regS: src.shoulder,
+      fsArmed: true, fsBuf: [], fsSince: null, falseStart: false }; // ref: 등록한 자리(출발선)에서의 몸 크기
     resetProgress(p); this.players.push(p);
     const det = src.isPending ? src.det : src;
     if (det) { det.player = p; det.pend = null; }
@@ -1483,7 +1609,7 @@ const Game = {
     UI.renderPlayers(this.players, now); UI.controls(); HallOfFame.render();
     const seq = ++this.regSeq;
     (async () => {
-      await Voice.say(`${id}번 등록`, 1.1, 1200);
+      await Voice.say(`${numKo(id)}번 등록`, 1.1, 1200);
       if (this.state !== "registration" || seq !== this.regSeq) return; // 연달아 등록되면 마지막 안내만
       if (this.players.length < CONFIG.MAX_PLAYERS) this.promptNext();
       else { UI.message("5명 등록 완료. 게임 시작을 누르세요", { ms: 3000 }); UI.foot("게임 시작 버튼을 누르면 3초 뒤 시작합니다."); Voice.say("모두 등록되었습니다. 게임을 시작하세요", 1.05, 2500); }
@@ -1495,18 +1621,20 @@ const Game = {
   //  - 3·2·1 동안: 모든 선수 (출발선으로 돌아오지 않은 채 시작해도 부정출발)
   checkFalseStart(dets, now) {
     if (!Settings.data.falseStart) return;
-    const R = falseStartRatio(), cd = this.state === "countdown";
+    const cd = this.state === "countdown", d0 = Settings.data.startDist, tol = Settings.data.fsTol;
     for (const d of dets) {
       const p = d.player;
       if (!p || !p.ref || p.falseStart || p.status !== (cd ? "alive" : "ready")) continue;
       if (d.crowded || !clearOwner(d)) continue; // 다른 사람과 포개졌거나 누구인지 헷갈린 순간은 보류
       const a = appDist(d.f, p.anchor); if (a != null && a > 0.45) continue; // 옷 색이 많이 다르면 다른 사람 뼈대일 수 있음
-      const r = sizeRatio(d.lm, p.ref); if (r == null) continue;
+      const dist = playerDistance(p, d); if (dist == null) continue;
       if (!p.fsBuf) p.fsBuf = [];
-      p.fsBuf.push(r); if (p.fsBuf.length > 9) p.fsBuf.shift();
-      const rm = p.fsRatio = medianAvg(p.fsBuf);
-      if (!p.fsArmed) { if (p.fsBuf.length >= 5 && rm < R - 0.03) p.fsArmed = true; if (!cd) continue; }
-      if (p.fsBuf.length >= 5 && rm >= R) { if (p.fsSince == null) p.fsSince = now; if (now - p.fsSince >= CONFIG.FALSE_START_MS) this.falseStart(p, now); }
+      p.fsBuf.push(dist); if (p.fsBuf.length > 9) p.fsBuf.shift();
+      const dm = p.fsDist = medianAvg(p.fsBuf);
+      // 기준: 등록한 자리와 출발선 중 술래에 더 가까운 쪽 (출발선 뒤에서 등록했다면 출발선까지는 나와도 됨)
+      const limit = Math.min(Floor.regDist(p.uid) ?? d0, d0) - tol;
+      if (!p.fsArmed) { if (p.fsBuf.length >= 5 && dm > limit + 0.15) p.fsArmed = true; if (!cd) continue; }
+      if (p.fsBuf.length >= 5 && dm < limit) { if (p.fsSince == null) p.fsSince = now; if (now - p.fsSince >= CONFIG.FALSE_START_MS) this.falseStart(p, now); }
       else p.fsSince = null;
     }
   },
@@ -1514,8 +1642,22 @@ const Game = {
     p.falseStart = true; p.status = "eliminated"; p.fsSince = null;
     Sfx.out(); Voice.cancel();
     UI.message(`${p.id}번 부정출발! 탈락`, { ms: 2400, color: "var(--pink)" });
-    Voice.say(`${p.id}번, 부정출발 탈락`, 1.0, 1800);
+    Voice.say(`${numKo(p.id)}번, 부정출발 탈락`, 1.0, 1800);
     UI.renderPlayers(this.players, now); Board.update(this.players, now);
+  },
+
+  // 참가자 삭제: 예) 3명 중 1번 삭제 → 2번이 1번, 3번이 2번 (게임 중에는 안 됨)
+  removePlayer(id) {
+    if (this.state === "countdown" || this.state === "playing") return;
+    const i = this.players.findIndex((p) => p.id === id); if (i < 0) return;
+    const [gone] = this.players.splice(i, 1);
+    Floor.drop(gone.uid);
+    this.players.forEach((p, k) => { p.id = k + 1; p.color = CONFIG.COLORS[k]; });
+    Sfx.tick();
+    UI.message(`${id}번 참가자 삭제` + (i < this.players.length ? " · 뒤 번호를 하나씩 당겼어요" : ""), { ms: 2600, color: "#ffb020" });
+    Voice.say(`${numKo(id)}번 참가자를 삭제했습니다`, 1.05, 1800);
+    UI.renderPlayers(this.players, performance.now()); UI.controls(); HallOfFame.render();
+    if (this.state === "registration" && this.players.length < CONFIG.MAX_PLAYERS) UI.foot(`출발선에서 손을 머리 위로 들면 ${this.players.length + 1}번으로 등록됩니다.`);
   },
 
   // 참가자 목록의 '어린이/성인' 버튼 (게임 중에는 바꿀 수 없음)
@@ -1530,6 +1672,7 @@ const Game = {
   /* ----- 리셋: 게임을 즉시 멈추고 대기 상태로 ----- */
   reset(keepPlayers) {
     ResetMenu.close(); Sfx.tick();
+    if (!keepPlayers) Floor.clear();
     this.enterRegistration(keepPlayers, keepPlayers);
     if (keepPlayers) {
       UI.message("리셋 · 출발선으로 돌아가 주세요", { ms: 3200, color: "#ffb020" });
@@ -1546,7 +1689,7 @@ const Game = {
     this.state = "countdown"; this.pending = []; Voice.cancel(); ResetMenu.close(); UI.controls();
     $("startBtn").disabled = true; $("startBtn").textContent = "진행 중…";
     UI.lockSettings(true); HallOfFame.render();
-    this.players.forEach((p) => { p.status = p.falseStart ? "eliminated" : "alive"; p.fsBuf = []; p.fsSince = null; p.shoulderSamples = []; p.basePose = null; p.baseShoulder = null; p.overCount = 0; p.moveRatio = null; resetProgress(p); });
+    this.players.forEach((p) => { p.status = p.falseStart ? "eliminated" : "alive"; p.fsBuf = []; p.fsSince = null; p.shoulderSamples = []; p.baseSizes = []; p.baseFoot = []; p.base = null; p.baseDist = null; p.basePose = null; p.baseShoulder = null; p.overCount = 0; p.moveRatio = null; resetProgress(p); });
     UI.renderPlayers(this.players, performance.now());
     Board.build(this.players); Board.show(true); Board.update(this.players, performance.now());
     UI.phase("출발선에 서세요", "");
@@ -1554,7 +1697,7 @@ const Game = {
     Voice.say("출발선에 서세요. 3, 2, 1", 1.0, 3200);
     for (const n of [3, 2, 1]) { if (this.token !== myToken) return; UI.message(String(n), { ms: 900, big: true }); Sfx.tick(); await wait(1000); }
     if (this.token !== myToken) return;
-    this.players.forEach((p) => { if (p.shoulderSamples.length) p.baseShoulder = median(p.shoulderSamples); if (p.ankleSamples.length) p.baseAnkle = median(p.ankleSamples); });
+    this.finishCountdown();
     this.state = "playing"; this.startedAt = performance.now();
     if (!this.players.some((p) => p.status === "alive")) { this.end("부정출발로 모두 탈락"); return; }
     UI.message("시작!", { ms: 1000, big: true, color: "var(--teal)" });
@@ -1571,7 +1714,19 @@ const Game = {
       const p = d.player; if (!p || !p.shoulderSamples) continue;
       p.shoulderSamples.push(d.shoulder);
       const y = ankleY(d.lm); if (y != null) p.ankleSamples.push(y);
+      if (d.crowded || !clearOwner(d)) continue;
+      const sz = bodySizes(d.lm); if (sz) p.baseSizes.push(sz); // 출발선에서의 몸 크기 (게임 중 거리 기준)
+      if (d.fy != null) p.baseFoot.push(d.fy);
     }
+  },
+  finishCountdown() { // 3·2·1이 끝날 때: 출발선 기준값 확정
+    this.players.forEach((p) => {
+      if (p.shoulderSamples.length) p.baseShoulder = median(p.shoulderSamples);
+      if (p.ankleSamples.length) p.baseAnkle = median(p.ankleSamples);
+      p.base = sizeRef(p.baseSizes || []);
+      p.baseDist = p.baseFoot && p.baseFoot.length >= 3 ? Floor.dist(medianAvg(p.baseFoot)) : null;
+      p.kScale = null;
+    });
   },
 
   /* ----- 술래 사이클: 말하기(뒤돌기) → 돌아보기 → 반복 ----- */
@@ -1603,7 +1758,7 @@ const Game = {
     const thr = this.threshold(), d = this.diff();
     for (const det of dets) {
       const p = det.player; if (!p || p.status !== "alive") continue;
-      this.updateProgress(det, p);
+      this.updateProgress(det, p, now);
       if (this.checkFinish(det, p, now)) continue; // 결승 구역 안에 있는 동안은 움직임 판정 안 함
       if (this.phase !== "looking" || now < this.graceUntil) continue;
       // 다른 사람과 포개졌거나 누구인지 헷갈린 프레임은 판정 보류 → 번호가 잠깐 섞여도 엉뚱한 사람이 탈락하지 않음
@@ -1621,8 +1776,8 @@ const Game = {
     if (Settings.data.finish === "approach") {
       const d0 = Settings.data.startDist;
       for (const p of this.players) {
-        if (p.status !== "alive" || !p.baseShoulder || now - p.lastSeen <= CONFIG.LOST_FINISH_MS) continue;
-        const lastDist = d0 / (p.ratioS || p.shoulder / p.baseShoulder), pd = passDist(p);
+        if (p.status !== "alive" || p.dMed == null || now - p.lastSeen <= CONFIG.LOST_FINISH_MS) continue;
+        const lastDist = p.dMed, pd = passDist(p);
         const atEdge = p.x < CONFIG.EDGE_X || p.x > 1 - CONFIG.EDGE_X;
         // 통과 시각은 마지막으로 보인 뒤 남은 거리를 초속 1m로 걸었다고 보고 추정 (명예의 전당 기록이 과하게 빨라지지 않도록)
         if (lastDist <= pd || (atEdge && lastDist <= pd + CONFIG.LOST_MARGIN_M)) this.success(p, now, Math.min(now, p.lastSeen + Math.max(0, lastDist - pd) * 1000));
@@ -1630,7 +1785,7 @@ const Game = {
     }
   },
   // 남은 거리·진행률 계산 (화면 표시용, 흔들림 완화)
-  updateProgress(det, p) {
+  updateProgress(det, p, now) {
     if (Settings.data.finish === "line") {
       const y = ankleY(det.lm); if (y == null) return;
       if (p.baseAnkle == null) p.baseAnkle = y;
@@ -1640,26 +1795,37 @@ const Game = {
       return;
     }
     if (!p.baseShoulder) p.baseShoulder = det.shoulder;
-    const R = finishRatio(p), d0 = Settings.data.startDist;
-    p.ratio = det.shoulder / p.baseShoulder;
-    p.ratioS = p.ratioS == null ? p.ratio : p.ratioS + (p.ratio - p.ratioS) * 0.35;
-    p.prog = progressFromRatio(p.ratioS, R);
-    p.dist = d0 / p.ratioS; // 술래(카메라)까지 거리 추정
+    const d0 = Settings.data.startDist, dist = playerDistance(p, det);
+    if (dist == null) return;
+    // 사람이 한순간에 갈 수 없는 만큼 바뀐 값은 뼈대 오류로 보고 버림 (잠깐 몸이 크게 잡혀 멋대로 통과되지 않도록)
+    const dt = p.dLastT != null ? (now - p.dLastT) / 1000 : 1;
+    if (p.dLast != null && Math.abs(dist - p.dLast) > 0.4 + 3.5 * dt) { if (++p.glitch < 6) return; }
+    p.glitch = 0; p.dLast = dist; p.dLastT = now;
+    if (!p.dBuf) p.dBuf = [];
+    p.dBuf.push(dist); if (p.dBuf.length > 5) p.dBuf.shift();
+    p.dMed = medianAvg(p.dBuf);
+    p.dist = p.dist == null ? dist : p.dist + (dist - p.dist) * 0.35; // 화면 표시용
+    p.prog = clamp((d0 - p.dist) / Math.max(0.5, d0 - passDist(p)), 0, 1);
   },
   // 도착 판정: 결승 조건을 연속 FINISH_CONFIRM_FRAMES 프레임 유지해야 통과
   checkFinish(det, p, now) {
+    const pd = passDist(p);
     const inZone = Settings.data.finish === "line"
       ? [27, 28].some((i) => vis(det.lm[i]) > 0.5 && det.lm[i].y > CONFIG.FINISH_LINE_Y)
-      : p.ratio >= finishRatio(p);
-    if (inZone) { if (clearOwner(det) && ++p.finishFrames >= CONFIG.FINISH_CONFIRM_FRAMES) this.success(p, now); } // 헷갈린 프레임은 세지 않고 보류
-    else p.finishFrames = 0;
+      : p.dMed != null && p.dMed <= pd && p.dLast <= pd + 0.15; // 최근 5프레임 가운데 값이 통과 거리 안
+    // 다른 사람과 포개졌거나 누구인지 헷갈린 프레임은 세지 않고 보류 (옆 사람 뼈대로 엉뚱한 번호가 통과하지 않도록)
+    if (inZone) {
+      if (p.finishFrames === 0 && p.zoneAt == null) p.zoneAt = now;
+      if (clearOwner(det) && !det.crowded && ++p.finishFrames >= CONFIG.FINISH_CONFIRM_FRAMES) this.success(p, now, p.zoneAt ?? now);
+    }
+    else { p.finishFrames = 0; p.zoneAt = null; }
     return inZone;
   },
   eliminate(p, now) {
     p.status = "eliminated"; this.lookEliminated++;
     Sfx.out();
     UI.message(`${p.id}번, 움직였습니다`, { ms: 2200, color: "var(--pink)" });
-    Voice.say(`${p.id}번, 탈락`, 1.0, 1500);
+    Voice.say(`${numKo(p.id)}번, 탈락`, 1.0, 1500);
     UI.renderPlayers(this.players, now); Board.update(this.players, now);
     this.checkEnd();
   },
@@ -1667,7 +1833,7 @@ const Game = {
     p.status = "success"; p.finishTime = Math.max(0, at - this.startedAt);
     Sfx.pass();
     UI.message(`${p.id}번 통과!`, { ms: 2200, color: "var(--teal)" });
-    Voice.say(`${p.id}번, 통과`, 1.1, 1500);
+    Voice.say(`${numKo(p.id)}번, 통과`, 1.1, 1500);
     UI.renderPlayers(this.players, now); Board.update(this.players, now);
     this.checkEnd();
   },
@@ -1732,7 +1898,8 @@ function draw(dets, now) {
   for (const det of dets) {
     const p = det.player;
     let color = "rgba(255,255,255,.28)", lw = Math.max(1.5, W / 640);
-    if (p) { color = p.status === "eliminated" ? "#ff2d55" : p.status === "success" ? "#00c896" : p.color; lw *= 1.8; }
+    const sure = p && (p.status === "eliminated" || p.status === "success" || clearOwner(det));
+    if (p && sure) { color = p.status === "eliminated" ? "#ff2d55" : p.status === "success" ? "#00c896" : p.color; lw *= 1.8; }
     ctx.strokeStyle = color; ctx.lineWidth = lw;
     ctx.beginPath();
     for (const [a, b] of BODY_CONNS) { const A = det.lm[a], B = det.lm[b]; if (vis(A) < 0.5 || vis(B) < 0.5) continue; ctx.moveTo(X(A.x), Y(A.y)); ctx.lineTo(X(B.x), Y(B.y)); }
@@ -1742,7 +1909,7 @@ function draw(dets, now) {
     const nose = det.lm[0]; const hr = det.shoulder * W * 0.3;
     ctx.beginPath(); ctx.arc(X(nose.x), Y(nose.y), hr, 0, Math.PI * 2); ctx.stroke();
 
-    if (p) {
+    if (p && sure) {
       const rp = Game.state === "playing" && p.status === "alive" ? remainParts(p) : null;
       const label = p.status === "eliminated" ? `${p.id}번 ${p.falseStart ? "부정출발" : "탈락"}` : p.status === "success" ? `${p.id}번 통과` : rp ? `${p.id}번 · ${rp.num}${rp.unit}` : `${p.id}번`;
       ctx.font = `800 ${fontPx}px ${getComputedStyle(document.body).fontFamily}`;
@@ -1819,7 +1986,9 @@ function onFrame(list, now, img = sampleFrame()) {
   // 몸통이 거의 포개진 순간은 움직임 판정 보류 (뼈대가 섞여 잘못 탈락하지 않도록)
   for (let i = 0; i < dets.length; i++) for (let j = i + 1; j < dets.length; j++) {
     const a = dets[i], b = dets[j];
-    if (Math.hypot(a.cx - b.cx, (a.cy - b.cy) * k) < 0.8 * Math.max(a.shoulder, b.shoulder)) a.crowded = b.crowded = true;
+    if (Math.hypot(a.cx - b.cx, (a.cy - b.cy) * k) >= 0.8 * Math.max(a.shoulder, b.shoulder)) continue;
+    if (Math.abs(Math.log(a.shoulder / b.shoulder)) < 0.47) a.crowded = b.crowded = true; // 비슷한 거리끼리 겹침 → 둘 다 보류
+    else (a.shoulder < b.shoulder ? a : b).crowded = true; // 멀리 뒤에 가려진 사람만 보류
   }
   // 붙어 서 있을 때 한 사람이 든 손을 옆 사람 뼈대도 같이 잡으면, 그 손목 바로 아래에 어깨가 있는 사람의 손으로만 인정
   for (let i = 0; i < dets.length; i++) for (let j = i + 1; j < dets.length; j++) {
@@ -1828,10 +1997,25 @@ function onFrame(list, now, img = sampleFrame()) {
     const near = (d) => Math.min(Math.abs(d.lm[11].x - d.handRaised.x), Math.abs(d.lm[12].x - d.handRaised.x)) / d.shoulder;
     (near(a) <= near(b) ? b : a).handRaised = null;
   }
+  // 발끝선 거리와 실제 키(누구인지 알기 전에 잴 수 있는 값)
+  for (const d of dets) {
+    d.fy = footY(d.lm); d.df = Floor.dist(d.fy);
+    d.hPhys = Floor.conf >= 8 && d.df != null && vis(d.lm[0]) > 0.5 ? (d.fy - d.lm[0].y) * d.df : null;
+  }
   // 등록 중에는 아직 번호 없는 사람도 함께 짝지어 둠 → 옆 선수가 잠깐 안 잡혀도 손 든 사람의 뼈대를 뺏어 가지 않음
   const reg = Game.state === "registration";
   Tracker.match(dets, reg ? [...Game.players, ...Game.pending] : Game.players, now);
   for (const d of dets) if (d.player && d.player.isPending) { d.pend = d.player; d.player = null; }
+  // 거리 모델 자료: 확실히 누구인지 아는 뼈대의 (등록 때 대비 몸 크기, 발끝 높이)
+  for (const d of dets) {
+    const p = d.player;
+    if (!p || !p.ref || d.fy == null || d.crowded || !clearOwner(d)) continue;
+    const r = sizeRatio(d.lm, p.ref); if (r != null) Floor.add(p.uid, r, d.fy);
+  }
+  if (++Floor.tick % 10 === 0) { // 거리 모델 다시 맞춤 → 선수별 실제 키도 새 모델로 다시 계산
+    Floor.solve(Settings.data.startDist);
+    for (const p of Game.players) p.hPhys = Floor.conf >= 8 && p.hRaw && p.hRaw.length >= 8 ? medianAvg(p.hRaw.map(([fy, ny]) => (fy - ny) * (Floor.dist(fy) ?? NaN)).filter((v) => v > 0)) || null : null;
+  }
   if (reg) { Game.handleRegistration(dets, now); Game.checkFalseStart(dets, now); }
   else if (Game.state === "countdown") { Game.collectBase(dets); Game.checkFalseStart(dets, now); }
   else if (Game.state === "playing") Game.judge(dets, now);
@@ -1914,6 +2098,17 @@ function bindSettings() {
   $("rmSame").onclick = () => Game.reset(true);
   $("rmNew").onclick = () => Game.reset(false);
   $("rmCancel").onclick = () => ResetMenu.close();
+  $("resetMenu").addEventListener("click", (e) => { if (e.target === $("resetMenu")) ResetMenu.close(); }); // 바깥을 누르면 닫힘
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("resetMenu").hidden) ResetMenu.close(); });
+  // 참가자 삭제: 한 번 누르면 '삭제?'로 바뀌고, 3초 안에 한 번 더 누르면 삭제
+  $("playerList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-del]"); if (!b) return;
+    const id = +b.dataset.del;
+    if (UI.delArmed === id) { UI.delArmed = null; clearTimeout(UI.delTimer); Game.removePlayer(id); return; }
+    UI.delArmed = id; clearTimeout(UI.delTimer);
+    UI.delTimer = setTimeout(() => { UI.delArmed = null; UI.renderPlayers(Game.players, performance.now()); }, 3000);
+    UI.renderPlayers(Game.players, performance.now());
+  });
   $("hofForm").onsubmit = (e) => { e.preventDefault(); HofScreen.submit(); };
   $("hofAnon").onclick = () => HofScreen.anon();
   $("hofCancel").onclick = () => HofScreen.cancel();
@@ -1922,7 +2117,7 @@ function bindSettings() {
   $("hofClear").onclick = () => HallOfFame.clearClick();
   HallOfFame.load(); HallOfFame.render();
   $("againBtn").onclick = () => { $("resultScreen").hidden = true; Game.enterRegistration(true); };
-  $("newBtn").onclick = () => { $("resultScreen").hidden = true; Game.enterRegistration(false); };
+  $("newBtn").onclick = () => { $("resultScreen").hidden = true; Floor.clear(); Game.enterRegistration(false); };
 }
 
 async function boot() {
