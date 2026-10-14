@@ -64,6 +64,7 @@
   @keyframes blink{50%{opacity:.15}}
   .timer{font-family:var(--num);font-size:clamp(48px,14vmin,160px);line-height:1;font-weight:800;letter-spacing:.01em;text-shadow:0 3px 16px rgba(0,0,0,.6);transform-origin:left center;font-variant-numeric:tabular-nums}
   .timer small{font-family:var(--font);font-size:.3em;font-weight:700;color:var(--muted);margin-left:4px}
+  #timeDisplay{display:inline-block;text-align:right}
   .tbar{height:clamp(5px,1vmin,10px);margin-top:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
   .tbar i{display:block;height:100%;width:100%;border-radius:inherit;background:var(--teal);transition:width 1s linear,background .3s}
   .hud-top.low .timer{color:#ff4d4d;animation:tpulse 1s ease-in-out infinite}
@@ -129,26 +130,27 @@
   .finish span{position:relative;top:-40px;font-size:13px;font-weight:700;color:var(--teal);background:rgba(0,0,0,.5);padding:4px 12px;border-radius:999px}
   #stage.line-mode .finish{display:flex}
 
-  /* ---------- 술래 캐릭터 (출사동이 머리, 3D 회전) ---------- */
-  #younghee{position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);width:min(52vmin,440px);aspect-ratio:1.25;perspective:1100px;z-index:35;pointer-events:none}
+  /* ---------- 술래 캐릭터 (출사동이 머리, 3D 회전) ----------
+     참가자를 가리지 않도록 왼쪽 위 '남은 시간' 상자 바로 오른쪽에, 상자와 같은 높이로 둡니다.
+     위치와 높이(--yh)는 TaggerDock이 남은 시간 상자를 재서 맞춥니다. 아래 값은 맞추기 전 기본값입니다. */
+  #younghee{--yh:calc(18vmin + 30px);position:absolute;left:calc(26vmin + 40px);top:12px;height:var(--yh);width:calc(var(--yh) * 1.25);perspective:calc(var(--yh) * 3.1);z-index:35;pointer-events:none}
   #younghee .head{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.65,-.3,.3,1.3)}
-  #younghee.looking .head{transform:rotateY(180deg) scale(1.18)}
+  #younghee.looking .head{transform:rotateY(180deg)}
   @media (prefers-reduced-motion:reduce){#younghee .head{transition:transform .2s linear}}
   .face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
   .face::before{content:"";position:absolute;left:50%;top:58%;width:78%;height:78%;transform:translate(-50%,-50%);border-radius:50%;z-index:0;transition:opacity .3s}
   .face img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;z-index:1}
   .face.back::before{background:radial-gradient(circle,rgba(0,0,0,.55),transparent 70%)}
-  .face.back img{filter:drop-shadow(0 12px 22px rgba(0,0,0,.6)) brightness(.9)}
+  .face.back img{filter:drop-shadow(0 calc(var(--yh) * .034) calc(var(--yh) * .063) rgba(0,0,0,.6)) brightness(.9)}
   .face.front{transform:rotateY(180deg)}
   .face.front::before{background:radial-gradient(circle,rgba(255,16,122,.75),rgba(255,16,122,.15) 55%,transparent 72%)}
-  .face.front img{filter:drop-shadow(0 0 18px rgba(255,16,122,.55)) drop-shadow(0 12px 22px rgba(0,0,0,.5))}
+  .face.front img{filter:drop-shadow(0 0 calc(var(--yh) * .051) rgba(255,16,122,.55)) drop-shadow(0 calc(var(--yh) * .034) calc(var(--yh) * .063) rgba(0,0,0,.5))}
   #younghee.looking .face.front::before{animation:glow .9s ease-in-out infinite alternate}
   @keyframes glow{to{transform:translate(-50%,-50%) scale(1.15);opacity:.7}}
   .scan{position:absolute;left:8%;right:8%;top:0;height:3px;background:linear-gradient(90deg,transparent,#fff,transparent);opacity:0;z-index:2}
   #younghee.looking .scan{opacity:.85;animation:scan 1.6s linear infinite}
   @keyframes scan{from{top:10%}to{top:90%}}
   @media (prefers-reduced-motion:reduce){#younghee.looking .scan,#younghee.looking .face.front::before{animation:none}}
-  @media (orientation:portrait),(max-width:640px){#younghee{top:40%}}
   .facepick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .facepick label{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border:1px dashed var(--line);border-radius:10px;cursor:pointer;font-size:12px;color:var(--muted)}
   .facepick img{width:64px;height:52px;object-fit:contain;background:#222;border-radius:8px}
@@ -521,7 +523,7 @@
    - 파일을 더블클릭해 열면(file://) 브라우저 보안상 lib/를 읽을 수 없어 공식 CDN 사용
    - 인식 모델은 models/ 폴더에 파일이 있으면 그것을, 없으면 Google 공식 주소에서 받음
    ========================================================= */
-const APP_VERSION = "2026.10.14e";
+const APP_VERSION = "2026.10.14f";
 const MP_VERSION = "0.10.3";
 const SERVED = location.protocol === "http:" || location.protocol === "https:";
 const here = (p) => new URL(p, location.href).href;
@@ -1231,6 +1233,40 @@ function ankleY(lm) { // 화면에서 더 아래쪽에 있는 발목의 y
    UI
    ========================================================= */
 const stage = $("stage"), younghee = $("younghee"), msgEl = $("msg"), phaseEl = $("phase");
+
+/* 술래(출사동이)를 왼쪽 위 '남은 시간' 상자 바로 오른쪽에, 상자와 같은 높이로 붙입니다.
+   상자 크기가 바뀌면(창 크기·글꼴 로딩·제한 시간 자릿수) 다시 맞춥니다.
+   폰 세로 화면처럼 좁아서 오른쪽 위 상태 배지와 겹치면 상자 바로 아래에 둡니다. */
+const TaggerDock = {
+  GAP: 12,
+  PHASE_TEXTS: ["대기 중", "참가자 등록", "출발선에 서세요", "이동!", "멈춰!", "게임 종료"],
+  phaseReserve() { // 상태 배지가 가장 길어질 때 차지하는 폭 (글자가 바뀌어도 술래 자리가 흔들리지 않게)
+    const cs = getComputedStyle(phaseEl), fs = parseFloat(cs.fontSize) || 16;
+    const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const ctx = (this.ctx ||= document.createElement("canvas").getContext("2d"));
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const ok = ctx.font.includes(cs.fontSize); // 글꼴 지정이 안 먹으면 글자 수로 넉넉히 어림
+    const textW = Math.max(phaseEl.scrollWidth - pad, ...this.PHASE_TEXTS.map((t) => (ok ? ctx.measureText(t).width : t.length * fs)));
+    return textW + pad + 2 + (parseFloat(cs.right) || 16);
+  },
+  fit() {
+    const s = stage.getBoundingClientRect(), r = $("timerCard").getBoundingClientRect();
+    if (!s.width || !r.height) return;
+    const h = r.height, w = h * 1.25;
+    let left = r.right - s.left + this.GAP, top = r.top - s.top;
+    if (left + w > s.width - this.phaseReserve() - this.GAP) { left = r.left - s.left; top = r.bottom - s.top + this.GAP; }
+    younghee.style.setProperty("--yh", `${h.toFixed(1)}px`);
+    younghee.style.left = `${left.toFixed(1)}px`; younghee.style.top = `${top.toFixed(1)}px`;
+  },
+  init() {
+    const go = () => this.fit();
+    if ("ResizeObserver" in window) { const ro = new ResizeObserver(go); ro.observe($("timerCard")); ro.observe(stage); }
+    window.addEventListener("resize", go);
+    document.fonts?.ready?.then(go).catch(() => {});
+    go();
+  },
+};
+
 const UI = {
   msgTimer: null,
   message(text, { ms = 2000, big = false, color = "" } = {}) {
@@ -1242,7 +1278,9 @@ const UI = {
   phase(text, cls = "") { phaseEl.textContent = text; phaseEl.className = "phase " + cls; },
   engine(text) { $("engineStatus").textContent = text; },
   timer(t) {
-    $("timeDisplay").textContent = String(Math.max(0, t)).padStart(2, "0");
+    const td = $("timeDisplay"), digits = Math.max(2, String(Math.max(t, Settings.data.time || 0)).length);
+    td.textContent = String(Math.max(0, t)).padStart(2, "0");
+    td.style.minWidth = `calc(${digits}ch + ${digits * 0.01}em)`; // 120초 → 99초처럼 자릿수가 줄어도 상자 폭을 유지 (옆의 술래가 움직이지 않게)
     $("timerCard").classList.toggle("low", t <= 10);
     $("timeBar").style.width = `${clamp(t / (Settings.data.time || 60), 0, 1) * 100}%`;
   },
@@ -2161,6 +2199,7 @@ window.addEventListener("error", (ev) => { const err = $("bootErr"); if (!$("sta
 
 bindSettings();
 UI.renderPlayers([], 0);
+TaggerDock.init();
 $("appVer").textContent = `버전 ${APP_VERSION}`;
 window.__ready = true;
 $("bootBtn").onclick = boot;
