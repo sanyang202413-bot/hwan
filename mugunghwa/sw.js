@@ -3,7 +3,7 @@
    - AI 엔진·인식 모델: 한 번 받으면 기기에 저장해 두고 그대로 사용 (주소에 버전이 있어 바뀌지 않음)
    - 이미지·아이콘: 저장본을 바로 쓰고 뒤에서 새 파일로 갱신
    파일을 고쳐 다시 올릴 때는 VERSION 값을 바꿔 주세요. */
-const VERSION = "2026.10.14e";
+const VERSION = "2026.10.14f";
 const SHELL = `mkh-shell-${VERSION}`;
 const ENGINE = "mkh-engine-mp0.10.3";
 const SHELL_FILES = [
