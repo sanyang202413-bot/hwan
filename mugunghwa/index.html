@@ -105,13 +105,15 @@
   .hof-cat{font-size:11px;font-weight:800;color:var(--muted);margin:6px 0 3px;letter-spacing:.02em}
   .hof-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
   .hof-list li{display:flex;align-items:baseline;gap:8px;padding:2px 4px;border-radius:7px;font-size:clamp(13px,1.45vw,17px);font-weight:700;line-height:1.35}
-  .hof-list li b{flex:none;width:1.2em;text-align:center;font-family:var(--num);color:var(--muted)}
+  .hof-list li b{flex:none;min-width:1.2em;text-align:center;font-family:var(--num);color:var(--muted)}
   .hof-list li.r1 b{color:var(--gold)}.hof-list li.r2 b{color:#c9ced8}.hof-list li.r3 b{color:#d39060}
   .hof-list .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hof-list .tm{flex:none;font-family:var(--num);font-size:.9em;color:#ececf2;font-variant-numeric:tabular-nums}
   .hof-list .tm small{font-family:var(--font);font-size:.75em;color:var(--muted);margin-left:1px}
   .hof-list li.none{display:block;color:var(--muted);font-size:12px;font-weight:600;text-align:center;padding:4px 0}
   .hof-list li.me{background:rgba(255,176,32,.16);box-shadow:inset 0 0 0 1px rgba(255,176,32,.45)}
+  .hof-list li.gap{display:block;text-align:center;color:var(--muted);padding:0;line-height:.9;font-size:14px;letter-spacing:.2em}
+  .hof-sub{font-size:11px;color:var(--muted);text-align:center;margin:-3px 0 2px;letter-spacing:.02em}
   .hof-card.compact{width:auto;min-width:170px;max-width:clamp(180px,24vw,290px);padding:6px 12px 8px;opacity:.92}
   .hof-card.compact .hof-title{font-size:13px;letter-spacing:.1em;margin-bottom:2px}
   .hof-card.compact .hof-list li{font-size:clamp(12px,1.3vw,15px)}
@@ -270,6 +272,15 @@
   .hof-form input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(255,176,32,.2)}
   .hof-form .btn{width:auto;padding:14px 22px;white-space:nowrap}
   .hof-skip{background:none;color:var(--muted);font-size:14px;font-weight:700;padding:6px;justify-self:center}
+  .hof-step{display:grid;gap:12px}
+  .hof-ranknum{font-size:clamp(22px,3.2vw,32px);font-weight:800;color:#ffc75a;line-height:1.1}
+  .hof-ranknum b{font-family:var(--num);font-size:clamp(88px,18vw,190px);font-weight:800;color:#fff;margin:0 .08em;letter-spacing:-.03em;vertical-align:-.12em;text-shadow:0 0 42px rgba(255,176,32,.55),0 6px 24px rgba(0,0,0,.6)}
+  .hof-step .hof-mini{max-width:420px;width:100%;justify-self:center}
+  .hof-ok{justify-self:center;width:auto;padding:14px 46px}
+  .hof-form input.need{border-color:var(--pink);animation:shake .35s}
+  @keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  @media (prefers-reduced-motion:reduce){.hof-form input.need{animation:none}}
+  .sec-label{margin:0;text-align:left;font-size:12px;font-weight:800;color:var(--muted)}
   .btn.danger-armed{border-color:var(--pink);color:#ff6aa8}
 </style>
 </head>
@@ -297,6 +308,7 @@
   <div class="card result">
     <h1 id="resultTitle">게임 종료</h1>
     <p id="resultSub"></p>
+    <p class="sec-label">이번 게임 결과 · 들어온 순서</p>
     <div id="resultList" class="rlist"></div>
     <div id="resultHof" class="hof-mini" hidden></div>
     <div class="rbtns">
@@ -311,14 +323,23 @@
   <img class="start-bg" id="hofBg" alt="">
   <div class="card hof" role="dialog" aria-labelledby="hofHeading">
     <h2 class="hof-h" id="hofHeading">명예의 전당</h2>
-    <div class="hof-meta"><span class="hof-chip" id="hofCat">어린이 부문</span><span id="hofWho">1번 선수</span></div>
-    <div class="hof-time" id="hofTime">0.00<small>초</small></div>
-    <p class="hof-rank" id="hofRank"></p>
-    <form class="hof-form" id="hofForm" autocomplete="off">
-      <input id="hofName" maxlength="12" placeholder="이름을 입력하세요" enterkeyhint="done" aria-label="이름">
-      <button class="btn primary" type="submit">이름 등록</button>
-    </form>
-    <button class="hof-skip" id="hofSkip" type="button">이름 없이 넘어가기</button>
+    <div class="hof-step" id="hofEntry">
+      <div class="hof-meta"><span class="hof-chip" id="hofCat">어린이 부문</span><span id="hofWho">이번 게임 1등 · 1번 선수</span></div>
+      <div class="hof-time" id="hofTime">0.00<small>초</small></div>
+      <p class="hof-rank">이름을 입력하면 지금까지 쌓인 기록에서 몇 위인지 알려 드려요</p>
+      <form class="hof-form" id="hofForm" autocomplete="off">
+        <input id="hofName" maxlength="12" placeholder="이름을 입력하세요" enterkeyhint="done" aria-label="이름">
+        <button class="btn primary" type="submit">이름 등록</button>
+      </form>
+      <button class="hof-skip" id="hofSkip" type="button">이름 없이 넘어가기</button>
+    </div>
+    <div class="hof-step" id="hofReveal" hidden>
+      <div class="hof-meta"><span class="hof-chip" id="hofCat2">어린이 부문</span><span id="hofWho2"></span></div>
+      <div class="hof-ranknum" id="hofRankNum" aria-live="polite">누적 <b>1</b>위</div>
+      <p class="hof-rank" id="hofRankSub"></p>
+      <div class="hof-mini" id="hofRevealList"></div>
+      <button class="btn primary hof-ok" id="hofOk" type="button">확인</button>
+    </div>
   </div>
 </div>
 
@@ -481,7 +502,7 @@
    - 파일을 더블클릭해 열면(file://) 브라우저 보안상 lib/를 읽을 수 없어 공식 CDN 사용
    - 인식 모델은 models/ 폴더에 파일이 있으면 그것을, 없으면 Google 공식 주소에서 받음
    ========================================================= */
-const APP_VERSION = "2026.10.14";
+const APP_VERSION = "2026.10.14b";
 const MP_VERSION = "0.10.3";
 const SERVED = location.protocol === "http:" || location.protocol === "https:";
 const here = (p) => new URL(p, location.href).href;
@@ -1021,10 +1042,15 @@ const HallOfFame = {
   top(type, n = 3) { return this.sorted(type).slice(0, n); },
   rankOf(rec) { return this.sorted(rec.type).findIndex((r) => r.id === rec.id) + 1; },
   name(r) { return r.name || "익명"; },
+  // 누적 순위 목록: 1~3위 + (강조할 기록이 4위 이하면) ⋯ 다음에 그 기록의 누적 순위 줄
   listHtml(type, highlightId) {
-    const top = this.top(type);
-    if (!top.length) return `<ol class="hof-list"><li class="none">아직 기록이 없어요</li></ol>`;
-    return `<ol class="hof-list">${top.map((r, i) => `<li class="r${i + 1}${r.id === highlightId ? " me" : ""}"><b>${i + 1}</b><span class="nm">${esc(this.name(r))}</span><span class="tm">${fmtSec(r.ms)}<small>초</small></span></li>`).join("")}</ol>`;
+    const all = this.sorted(type);
+    if (!all.length) return `<ol class="hof-list"><li class="none">아직 기록이 없어요</li></ol>`;
+    const row = (r, rank) => `<li class="r${rank}${r.id === highlightId ? " me" : ""}"><b>${rank}</b><span class="nm">${esc(this.name(r))}</span><span class="tm">${fmtSec(r.ms)}<small>초</small></span></li>`;
+    let html = all.slice(0, 3).map((r, i) => row(r, i + 1)).join("");
+    const at = highlightId ? all.findIndex((r) => r.id === highlightId) : -1;
+    if (at >= 3) html += `<li class="gap" aria-hidden="true">⋯</li>` + row(all[at], at + 1);
+    return `<ol class="hof-list">${html}</ol>`;
   },
   // 게임 화면 카드: 등록된 참가자의 부문(없으면 '새 참가자 구분')만 표시
   //  - 대기·등록 중: 부문별 1~3위 / 게임 중: 참가자 표시를 가리지 않도록 부문별 1위만 작게
@@ -1036,10 +1062,10 @@ const HallOfFame = {
     if (playing) {
       const rows = types.map((t) => { const r = this.top(t, 1)[0]; return r ? `<li class="r1"><b>1</b><span class="cat">${TYPE_LABEL[t]}</span><span class="nm">${esc(this.name(r))}</span><span class="tm">${fmtSec(r.ms)}<small>초</small></span></li>` : ""; }).join("");
       card.hidden = !rows;
-      card.innerHTML = `<div class="hof-title">명예의 전당 1위</div><ol class="hof-list">${rows}</ol>`;
+      card.innerHTML = `<div class="hof-title">명예의 전당 · 누적 1위</div><ol class="hof-list">${rows}</ol>`;
     } else {
       card.hidden = false;
-      card.innerHTML = `<div class="hof-title">명예의 전당</div>` + types.map((t) => `<div class="hof-cat">${TYPE_LABEL[t]}</div>${this.listHtml(t)}`).join("");
+      card.innerHTML = `<div class="hof-title">명예의 전당</div><div class="hof-sub">지금까지 쌓인 기록 · 누적 TOP 3</div>` + types.map((t) => `<div class="hof-cat">${TYPE_LABEL[t]}</div>${this.listHtml(t)}`).join("");
     }
     $("hofCount").textContent = `${this.list.length}건`;
   },
@@ -1079,42 +1105,63 @@ const HallOfFame = {
   },
 };
 
-// 게임 종료 후: 부문별 1등의 기록을 크게 보여 주고 이름 입력
+// 게임 종료 후: 부문별 '이번 게임 1등'의 기록을 크게 보여 주고 이름 입력 → 누적(지금까지 쌓인 모든 1등 기록) 순위 공개
 const HofScreen = {
-  resolve: null, rec: null,
+  resolve: null, rec: null, p: null, shownAt: 0,
   ask({ p, rec }) {
     return new Promise((res) => {
-      this.resolve = res; this.rec = rec;
-      const rank = HallOfFame.rankOf(rec), total = HallOfFame.sorted(rec.type).length;
+      this.resolve = res; this.rec = rec; this.p = p;
       $("hofCat").textContent = `${TYPE_LABEL[rec.type]} 부문`;
-      $("hofWho").textContent = `${p.id}번 선수`; $("hofWho").style.color = p.color;
+      $("hofWho").textContent = `이번 게임 1등 · ${p.id}번 선수`; $("hofWho").style.color = p.color;
       $("hofTime").innerHTML = `${fmtSec(rec.ms)}<small>초</small>`;
-      const r = $("hofRank");
-      r.className = "hof-rank" + (rank === 1 ? " new" : "");
-      r.textContent = rank === 1 ? (total === 1 ? "첫 번째 기록 · 역대 1위!" : "역대 1위 · 새 기록!")
-        : rank <= 3 ? `역대 ${rank}위 · 명예의 전당 TOP 3` : `이번 판 1등 · 역대 ${rank}위`;
-      $("hofName").value = "";
+      $("hofName").value = ""; $("hofName").classList.remove("need");
+      $("hofEntry").hidden = false; $("hofReveal").hidden = true;
       $("hofBg").src = BODY_IMG;
       $("hofScreen").hidden = false;
       setTimeout(() => $("hofName").focus(), 80);
       Sfx.fanfare();
-      Voice.say(`명예의 전당! ${p.id}번 선수, ${(rec.ms / 1000).toFixed(1)}초. 이름을 입력해 주세요`, 1.05, 3500);
+      Voice.say(`이번 게임 1등! ${p.id}번 선수, ${(rec.ms / 1000).toFixed(1)}초. 이름을 입력해 주세요`, 1.05, 3500);
     });
   },
-  finish(save) {
-    if (!this.resolve) return;
-    const name = save ? $("hofName").value.trim().replace(/\s+/g, " ").slice(0, 12) : "";
-    if (name) {
-      HallOfFame.rename(this.rec.id, name);
-      const rank = HallOfFame.rankOf(this.rec);
-      Sfx.pass();
-      Voice.say(rank <= 3 ? `${name}, 명예의 전당 ${rank}위` : `${name}, 기록을 저장했습니다`, 1.05, 2000);
+  // 이름 등록 → 누적 순위 공개 (이름이 비어 있으면 입력칸을 흔들어 알림)
+  submit() {
+    if (!this.resolve || !$("hofReveal").hidden) return;
+    const input = $("hofName"), name = input.value.trim().replace(/\s+/g, " ").slice(0, 12);
+    if (!name) { input.classList.remove("need"); void input.offsetWidth; input.classList.add("need"); input.focus(); return; }
+    HallOfFame.rename(this.rec.id, name);
+    HallOfFame.render();
+    this.reveal(name);
+  },
+  reveal(name) {
+    const rec = this.rec, all = HallOfFame.sorted(rec.type), total = all.length;
+    const rank = all.findIndex((r) => r.id === rec.id) + 1;
+    $("hofCat2").textContent = `${TYPE_LABEL[rec.type]} 부문`;
+    $("hofWho2").textContent = `${name} · ${fmtSec(rec.ms)}초`; $("hofWho2").style.color = this.p.color;
+    $("hofRankNum").innerHTML = `누적 <b>${rank}</b>위`;
+    let sub;
+    if (rank === 1) sub = total === 1 ? "첫 번째 기록! 명예의 전당 1위에 올랐어요" : `역대 최고 기록! 누적 기록 ${total}개 중 1위예요`;
+    else if (rank <= 3) sub = `누적 기록 ${total}개 중 ${rank}위 · 명예의 전당 TOP 3에 올라 게임 화면에 이름이 표시돼요`;
+    else {
+      const gap = rec.ms - all[2].ms;
+      sub = `누적 기록 ${total}개 중 ${rank}위 · ` + (gap >= 10 ? `3위 기록(${fmtSec(all[2].ms)}초)까지 ${fmtSec(gap)}초 남았어요` : "3위와 같은 시간이지만 먼저 세운 기록이 앞서요");
     }
+    const subEl = $("hofRankSub"); subEl.textContent = sub; subEl.className = "hof-rank" + (rank <= 3 ? " new" : "");
+    $("hofRevealList").innerHTML = `<div class="hof-title">${TYPE_LABEL[rec.type]} 누적 순위</div>${HallOfFame.listHtml(rec.type, rec.id)}`;
+    $("hofEntry").hidden = true; $("hofReveal").hidden = false;
+    this.shownAt = performance.now();
+    setTimeout(() => $("hofOk").focus(), 60);
+    if (rank <= 3) Sfx.fanfare(); else Sfx.pass();
+    Voice.say(rank <= 3 ? `${name}, 명예의 전당 ${rank}위!` : `${name}, 누적 ${rank}위입니다`, 1.05, 2200);
+  },
+  ok() { if (performance.now() - this.shownAt < 500) return; this.done(); }, // 이름 등록 때 누른 Enter가 겹쳐 바로 넘어가지 않도록
+  skip() { if (this.resolve && $("hofReveal").hidden) this.done(); },
+  done() {
+    if (!this.resolve) return;
     HallOfFame.render();
     $("hofScreen").hidden = true;
     const res = this.resolve; this.resolve = null; res();
   },
-  close() { if (this.resolve) this.finish(false); $("hofScreen").hidden = true; },
+  close() { if (this.resolve) this.done(); $("hofScreen").hidden = true; },
 };
 
 /* =========================================================
@@ -1357,12 +1404,12 @@ const Game = {
     const outs = this.players.filter((p) => p.status !== "success");
     Voice.say(passed.length ? `게임 종료. ${passed.length}명 통과` : "게임 종료. 통과한 사람이 없습니다", 1.0, 2500);
     $("resultTitle").textContent = reason;
-    $("resultSub").textContent = passed.length ? `${passed.length}명이 결승선을 통과했습니다.` : "아무도 통과하지 못했습니다.";
+    $("resultSub").textContent = passed.length ? `${passed.length}명이 통과했습니다.` : "아무도 통과하지 못했습니다.";
     $("resultList").innerHTML = [
       ...passed.map((p, i) => `<div class="rl success"><span class="rank">${i + 1}</span><span class="name" style="color:${p.color}">${p.id}번 선수 · ${TYPE_LABEL[p.type]}</span><span class="t">${fmtSec(p.finishTime)}초</span></div>`),
       ...outs.map((p) => `<div class="rl eliminated"><span class="rank">–</span><span class="name">${p.id}번 선수 · ${TYPE_LABEL[p.type]}</span><span class="t">탈락</span></div>`),
     ].join("");
-    // 명예의 전당: 부문(어린이·성인)별 이번 판 1등 기록 저장 (이름은 다음 화면에서 입력)
+    // 명예의 전당: 부문(어린이·성인)별 이번 게임 1등 기록을 누적 기록에 저장 (이름은 다음 화면에서 입력)
     const winners = [];
     for (const type of ["child", "adult"]) {
       const best = passed.find((p) => p.type === type); // passed는 빠른 순
@@ -1378,7 +1425,7 @@ const Game = {
       for (const w of winners) { await HofScreen.ask(w); if (this.token !== tk || this.state !== "result") return; }
       const box = $("resultHof");
       box.hidden = !winners.length;
-      box.innerHTML = `<div class="hof-title">명예의 전당</div>` + winners.map((w) => `<div class="hof-cat">${TYPE_LABEL[w.rec.type]}</div>${HallOfFame.listHtml(w.rec.type, w.rec.id)}`).join("");
+      box.innerHTML = `<div class="hof-title">명예의 전당 · 누적 순위</div>` + winners.map((w) => `<div class="hof-cat">${TYPE_LABEL[w.rec.type]} · 이번 게임 1등은 누적 ${HallOfFame.rankOf(w.rec)}위</div>${HallOfFame.listHtml(w.rec.type, w.rec.id)}`).join("");
       $("resultScreen").hidden = false;
     }, 1600);
   },
@@ -1548,9 +1595,10 @@ function bindSettings() {
   $("rmSame").onclick = () => Game.reset(true);
   $("rmNew").onclick = () => Game.reset(false);
   $("rmCancel").onclick = () => ResetMenu.close();
-  $("hofForm").onsubmit = (e) => { e.preventDefault(); HofScreen.finish(true); };
-  $("hofSkip").onclick = () => HofScreen.finish(false);
-  $("hofName").addEventListener("keydown", (e) => { if (e.key === "Escape") HofScreen.finish(false); });
+  $("hofForm").onsubmit = (e) => { e.preventDefault(); HofScreen.submit(); };
+  $("hofSkip").onclick = () => HofScreen.skip();
+  $("hofName").addEventListener("keydown", (e) => { if (e.key === "Escape") HofScreen.skip(); });
+  $("hofOk").onclick = () => HofScreen.ok();
   $("hofExport").onclick = () => HallOfFame.exportFile();
   $("hofClear").onclick = () => HallOfFame.clearClick();
   HallOfFame.load(); HallOfFame.render();
