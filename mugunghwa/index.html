@@ -453,6 +453,11 @@
             <input type="range" id="sens" min="0.5" max="2" step="0.1" value="1">
           </label>
           <p class="hint">숫자가 작을수록 조금만 움직여도 탈락합니다. 현장 조명·거리에 맞춰 조정하세요.</p>
+          <label class="check"><input type="checkbox" id="fsOn" checked>부정출발 판정 · 등록한 자리보다 앞으로 나오면 탈락</label>
+          <label class="f" id="fsTolRow"><span class="lrow">부정출발 허용 거리 <b id="fsTolVal">0.5m</b></span>
+            <input type="range" id="fsTol" min="0.3" max="1.5" step="0.1" value="0.5">
+          </label>
+          <p class="hint" id="fsHint">손을 들어 등록할 때 선 자리를 기억해 두었다가, 게임 시작 전(등록 중, 3·2·1 동안)에 이 거리보다 더 앞으로 나오면 바로 탈락합니다. 출발선에 서서 등록하세요.</p>
           <label class="f">카메라 선택
             <select id="camSelect"><option value="">기본 카메라</option></select>
           </label>
@@ -489,7 +494,7 @@
         <div id="playerList" class="plist"></div>
       </div>
     </div>
-    <div class="p-foot" id="footHint">한 명씩 차례로 손을 1초간 들면 자동 등록됩니다.</div>
+    <div class="p-foot" id="footHint">출발선에서 손을 머리 위로 들면 차례로 자동 등록됩니다.</div>
   </aside>
 </div>
 
@@ -510,7 +515,7 @@
    - 파일을 더블클릭해 열면(file://) 브라우저 보안상 lib/를 읽을 수 없어 공식 CDN 사용
    - 인식 모델은 models/ 폴더에 파일이 있으면 그것을, 없으면 Google 공식 주소에서 받음
    ========================================================= */
-const APP_VERSION = "2026.10.14c";
+const APP_VERSION = "2026.10.14d";
 const MP_VERSION = "0.10.3";
 const SERVED = location.protocol === "http:" || location.protocol === "https:";
 const here = (p) => new URL(p, location.href).href;
@@ -533,7 +538,9 @@ const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Web0S|webOS|SmartTV|Tizen/i.t
 const CONFIG = {
   MAX_PLAYERS: 5,
   COLORS: ["#3b82f6", "#ff107a", "#00c896", "#ffb020", "#a78bfa"],
-  REGISTER_HOLD_MS: 1000,
+  REGISTER_HOLD_MS: 700,     // 손을 이만큼(누적) 들고 있으면 등록
+  REGISTER_GAP_MS: 1000,     // 붙어 서 있어 뼈대가 잠깐 끊겨도 이 시간 안에 다시 잡히면 이어서 셈
+  FALSE_START_MS: 400,       // 등록한 자리보다 앞으로 나온 상태가 이만큼 이어지면 부정출발
   START_DIST: 6,             // 기본 출발선 거리 (술래·카메라 → 출발선, m) · 최대 6m (노트북 카메라로 안정적으로 인식되는 거리)
   PASS_DIST: { adult: 2.5, child: 1.5 }, // 기본 통과 거리: 술래(카메라)까지 남은 거리가 이 안이면 통과 (m)
   FINISH_CONFIRM_FRAMES: 5,  // 통과 거리 안에 연속 5프레임(약 0.2초) 머물러야 통과 인정
@@ -562,7 +569,7 @@ const progressFromRatio = (r, R) => clamp((1 - 1 / r) / (1 - 1 / R), 0, 1);
 
 const SETTINGS_VERSION = 3; // 기본값이 바뀌면 올림 → 예전에 저장된 거리·모델 설정 대신 새 기본값 사용
 const Settings = {
-  data: { v: SETTINGS_VERSION, difficulty: "normal", time: 60, finish: "approach", startDist: CONFIG.START_DIST, passAdult: CONFIG.PASS_DIST.adult, passChild: CONFIG.PASS_DIST.child, defaultType: "child", mirror: "auto", model: "auto", sens: 1, voice: true, facing: "user" },
+  data: { v: SETTINGS_VERSION, difficulty: "normal", time: 60, finish: "approach", startDist: CONFIG.START_DIST, passAdult: CONFIG.PASS_DIST.adult, passChild: CONFIG.PASS_DIST.child, defaultType: "child", mirror: "auto", model: "auto", sens: 1, falseStart: true, fsTol: 0.5, voice: true, facing: "user" },
   load() {
     try {
       const saved = JSON.parse(localStorage.getItem("mkh-settings") || "{}");
@@ -834,9 +841,11 @@ const Detector = {
   create(delegate) {
     return PoseLandmarker.createFromOptions(this.vision, {
       baseOptions: { modelAssetPath: this.modelPath, delegate },
-      // 참가자 5명 + 여유 1명(구경하는 사람 때문에 참가자가 빠지지 않도록), 붙어 선 사람도 잡히도록 기준을 조금 낮춤
-      runningMode: "VIDEO", numPoses: CONFIG.MAX_PLAYERS + 1,
-      minPoseDetectionConfidence: 0.45, minPosePresenceConfidence: 0.45, minTrackingConfidence: 0.5,
+      // 참가자 5명 + 여유 2명(구경하는 사람·겹쳐 잡힌 뼈대 때문에 참가자가 빠지지 않도록), 붙어 선 사람도 잡히도록 기준을 조금 낮춤
+      // minTrackingConfidence: 엔진은 사람마다 잡은 몸 영역이 이 비율(IoU)보다 많이 겹치면 한 사람으로 합침.
+      //   기본값 0.5에서는 50cm 안팎으로 붙어 선 이웃끼리 영역이 절반 넘게 겹쳐 가운데 사람이 자주 사라지므로 0.75로 높임
+      runningMode: "VIDEO", numPoses: CONFIG.MAX_PLAYERS + 2,
+      minPoseDetectionConfidence: 0.45, minPosePresenceConfidence: 0.45, minTrackingConfidence: 0.75,
     });
   },
   async fallbackToCPU() {
@@ -958,16 +967,54 @@ function featBlend(acc, f, a) { // acc ← (1−a)·acc + a·f
   for (const key of ["torso", "hip", "head"]) { const v = f.shape[key]; if (v > 0) acc.shape[key] = acc.shape[key] > 0 ? acc.shape[key] + (v - acc.shape[key]) * a : v; }
 }
 const sigCss = (p) => (p?.anchor?.up ? `rgb(${p.anchor.up.rgb.map((v) => v | 0).join(",")})` : "#333");
-// 손을 들었는지: 손목이 코보다 위 + 팔뚝이 위로 + 자기 몸 쪽에 있을 때만 (옆 사람 팔을 내 것으로 착각하지 않도록)
-function handUp(lm) {
-  const nose = lm[0], sx = (lm[11].x + lm[12].x) / 2, S = Math.max(0.02, Math.abs(lm[11].x - lm[12].x));
-  return [[15, 13], [16, 14]].some(([w, e]) => vis(lm[w]) > 0.5 && vis(lm[e]) > 0.35 && lm[w].y < nose.y - 0.02 && lm[w].y < lm[e].y && Math.abs(lm[w].x - sx) < 1.8 * S);
+// 손을 들었는지 (등록용) — 한쪽 팔이 위로 올라가 있으면 인정
+//  ① 손목이 코 높이보다 위, 또는 ② 팔꿈치가 어깨보다 확실히 위 (팔을 굽혀 얼굴 옆으로 든 경우)
+//  공통: 손목이 팔꿈치보다 위 + 팔이 자기 어깨에 이어져 있음 (옆 사람 팔을 내 것으로 착각하지 않도록)
+//  붙어 서 있으면 손목 점이 흐릿하게 잡히므로 '보이는 정도' 기준은 낮춤
+//  돌려주는 값: 든 손의 손목 점 (안 들었으면 null)
+function handUp(lm, k = aspectHW()) {
+  const ls = lm[11], rs = lm[12], nose = lm[0];
+  const L = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) * k);
+  const S = Math.max(0.012, L(ls, rs), 0.6 * L(mid(ls, rs), mid(lm[23], lm[24]))); // 몸을 돌려도 덜 줄어드는 몸 크기
+  const Sy = S / k; // 같은 길이를 세로 좌표 단위로
+  for (const [w, e, sh] of [[15, 13, 11], [16, 14, 12]]) {
+    const W = lm[w], E = lm[e], Sh = lm[sh];
+    if (vis(W) < 0.35 || vis(E) < 0.25 || !(W.y < E.y)) continue;
+    const high = (vis(nose) > 0.3 && W.y < nose.y) || E.y < Sh.y - 0.15 * Sy;
+    if (!high || W.y > Sh.y - 0.35 * Sy) continue;
+    if (L(E, Sh) < 1.5 * S && L(W, E) < 1.7 * S && Math.abs(W.x - Sh.x) < 1.7 * S) return W;
+  }
+  return null;
 }
 
 /* =========================================================
    추적기: 움직임 예측 + 옷 색 + 체형으로, 매 프레임 모든 선수의 짝을 한꺼번에 가장 그럴듯하게 맞춤
    (한 명씩 차례로 맞추면 엇갈릴 때 번호가 뒤바뀌므로 전체 조합 중 최선을 고름)
    ========================================================= */
+// 최소 비용 짝짓기 (헝가리안 방법): a는 n×M 비용표 (n ≤ M), 행마다 고른 열 번호를 돌려줌
+function hungarian(a) {
+  const n = a.length, M = a[0].length, INF = 1e18;
+  const u = new Float64Array(n + 1), v = new Float64Array(M + 1), p = new Int32Array(M + 1), way = new Int32Array(M + 1);
+  for (let i = 1; i <= n; i++) {
+    p[0] = i; let j0 = 0;
+    const minv = new Float64Array(M + 1).fill(INF), used = new Uint8Array(M + 1);
+    do {
+      used[j0] = 1; const i0 = p[j0]; let delta = INF, j1 = 0;
+      for (let j = 1; j <= M; j++) if (!used[j]) {
+        const cur = a[i0 - 1][j - 1] - u[i0] - v[j];
+        if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
+        if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+      }
+      for (let j = 0; j <= M; j++) if (used[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta;
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1; } while (j0);
+  }
+  const ans = new Array(n).fill(-1);
+  for (let j = 1; j <= M; j++) if (p[j]) ans[p[j] - 1] = j - 1;
+  return ans;
+}
+
 const Tracker = {
   MISS: 2.4, // 이보다 어긋나면 그 선수는 이번 프레임에 '안 보임'으로 둠
   cost(p, d, now) {
@@ -982,24 +1029,16 @@ const Tracker = {
     const sh = shapeDist(d.f, p.anchor), shape = sh == null ? 0.3 : sh;
     const scale = Math.min(2, Math.abs(Math.log(d.shoulder / S)) / Math.log(1.6));
     const wPos = lost < 400 ? 1 : lost < 2000 ? 0.5 : 0.2, wScale = lost < 400 ? 0.6 : 0.25; // 오래 안 보였으면 위치보다 특성으로 다시 찾음
-    return wPos * Math.min(pos, 4) + 2.4 * app + wScale * scale + 0.4 * shape;
+    // 아직 번호 없는 사람(등록 대기)은 조금 불리하게 → 애매하면 등록된 선수가 자기 뼈대를 먼저 가져감
+    return (p.isPending ? 0.25 : 0) + wPos * Math.min(pos, 4) + 2.4 * app + wScale * scale + 0.4 * shape;
   },
   match(dets, players, now) {
-    const n = players.length;
-    if (!n || !dets.length) return;
+    const n = players.length, m = dets.length;
+    if (!n || !m) return;
     const C = players.map((p) => dets.map((d) => this.cost(p, d, now)));
-    const assign = new Array(n).fill(-1), used = new Array(dets.length).fill(false);
-    let best = Infinity, bestAssign = assign.slice();
-    const dfs = (i, acc) => { // 최대 5명 × 6명이라 모든 조합을 빠르게 확인 가능
-      if (acc >= best) return;
-      if (i === n) { best = acc; bestAssign = assign.slice(); return; }
-      for (let j = 0; j < dets.length; j++) {
-        if (used[j] || !(C[i][j] < this.MISS)) continue;
-        used[j] = true; assign[i] = j; dfs(i + 1, acc + C[i][j]); used[j] = false;
-      }
-      assign[i] = -1; dfs(i + 1, acc + this.MISS);
-    };
-    dfs(0, 0);
+    // 모든 조합 중 비용 합이 가장 작은 짝 · 선수마다 '이번엔 안 보임' 칸을 따로 둠
+    const BIG = 1e6, A = C.map((row, i) => [...row.map((c) => (c < this.MISS ? c : BIG)), ...players.map((_, o) => (o === i ? this.MISS : BIG))]);
+    const bestAssign = hungarian(A).map((j, i) => (j >= 0 && j < m && A[i][j] < BIG ? j : -1));
     const k = aspectHW();
     bestAssign.forEach((j, i) => {
       if (j < 0) return;
@@ -1034,6 +1073,35 @@ function clearOwner(d, strict = false) {
   return strict ? d.margin >= 1.0 || (d.margin >= 0.4 && j < 0.15)
                 : d.margin >= 0.6 || (d.margin >= 0.3 && j < 0.2);
 }
+
+/* =========================================================
+   부정출발: 손을 들어 등록할 때의 몸 크기 = 출발선에서의 크기
+   - 어깨너비·골반너비·몸통·다리 길이를 함께 보고 가운데 값을 씀 (몸을 돌리거나 팔을 들어도 덜 흔들림)
+   - 지금 크기 ÷ 등록 때 크기가 (출발선 ÷ (출발선 − 허용 거리))배를 넘으면 그만큼 앞으로 나온 것
+   ========================================================= */
+const medianAvg = (a) => { const t = [...a].sort((x, y) => x - y), h = t.length >> 1; return t.length % 2 ? t[h] : (t[h - 1] + t[h]) / 2; };
+function bodySizes(lm, k = aspectHW()) {
+  const ok = (i) => vis(lm[i]) > 0.5;
+  if (!ok(11) || !ok(12) || !ok(23) || !ok(24)) return null;
+  const L = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) * k);
+  const sm = mid(lm[11], lm[12]), hm = mid(lm[23], lm[24]);
+  const out = { sw: L(lm[11], lm[12]), hw: L(lm[23], lm[24]), torso: L(sm, hm) };
+  if (ok(27) && ok(28)) out.leg = L(hm, mid(lm[27], lm[28]));
+  return out;
+}
+function sizeRef(samples) { // 등록할 때(손 든 동안) 잰 몸 크기 → 부위별 가운데 값
+  if (!samples || samples.length < 3) return null;
+  const ref = {};
+  for (const key of ["sw", "hw", "torso", "leg"]) { const v = samples.map((x) => x[key]).filter((x) => x > 0); if (v.length >= 3) ref[key] = medianAvg(v); }
+  return Object.keys(ref).length >= 2 ? ref : null;
+}
+function sizeRatio(lm, ref) { // 등록 때보다 몇 배 크게 보이는지
+  const cur = ref && bodySizes(lm); if (!cur) return null;
+  const r = []; for (const key in ref) if (cur[key] > 0) r.push(cur[key] / ref[key]);
+  return r.length >= 2 ? medianAvg(r) : null;
+}
+// 부정출발로 보는 크기 배율 (예: 출발선 6m, 허용 0.5m → 6 ÷ 5.5 ≈ 1.09배)
+const falseStartRatio = () => { const d0 = Settings.data.startDist; return d0 / Math.max(0.5, d0 - Settings.data.fsTol); };
 
 /* =========================================================
    움직임 계산 (어깨너비로 정규화, 상위 3개 관절 평균)
@@ -1081,13 +1149,13 @@ const UI = {
     if (btn.disabled) ResetMenu.close();
   },
   lockSettings(on) { // 게임 중에는 판정에 영향을 주는 설정을 잠금
-    ["difficulty", "timeLimit", "finishMode", "startDist", "passAdult", "passChild"].forEach((id) => { $(id).disabled = on; });
+    ["difficulty", "timeLimit", "finishMode", "startDist", "passAdult", "passChild", "fsOn", "fsTol"].forEach((id) => { $(id).disabled = on; });
   },
   renderPlayers(players, now) {
     const list = $("playerList");
     $("playerCount").textContent = `${players.length} / ${CONFIG.MAX_PLAYERS}`;
     let html;
-    if (!players.length) html = `<div class="empty">아직 등록된 참가자가 없습니다.<br>1번 참가자부터 카메라를 보고 손을 들어 주세요.</div>`;
+    if (!players.length) html = `<div class="empty">아직 등록된 참가자가 없습니다.<br>출발선에 서서 손을 머리 위로 들면 차례로 등록됩니다.</div>`;
     else html = this.playerRows(players, now);
     if (html !== this.lastPlayersHtml) { this.lastPlayersHtml = html; list.innerHTML = html; } // 바뀐 것이 있을 때만 다시 그림 (버튼 누름 보존)
   },
@@ -1101,7 +1169,7 @@ const UI = {
       const cls = ratio >= 1 ? "over" : ratio > 0.6 ? "warn" : "";
       const sub = p.status === "success" ? `${fmtSec(p.finishTime)}초 만에 통과`
         : p.status === "alive" ? `<span>움직임</span><span class="meter"><i class="${cls}" style="width:${ratio / 1.2 * 100}%"></i></span>`
-        : p.status === "eliminated" ? "술래에게 들킴" : "등록 완료";
+        : p.status === "eliminated" ? (p.falseStart ? "부정출발 · 등록한 자리보다 앞으로 나옴" : "술래에게 들킴") : "등록 완료";
       return `<div class="pl ${p.status} ${unseen ? "unseen" : ""}">
         <div class="bar" style="background:${p.color}"></div>
         <div class="vest" style="background:${sigCss(p)}" title="기억한 옷 색"></div>
@@ -1147,7 +1215,7 @@ const Board = {
       const unseen = now - p.lastSeen > 1200;
       let cls = p.status, st = "", val = "", prog = p.prog ?? 0;
       if (p.status === "success") { val = "통과"; st = `${fmtSec(p.finishTime)}초`; prog = 1; }
-      else if (p.status === "eliminated") { val = "탈락"; }
+      else if (p.status === "eliminated") { val = "탈락"; if (p.falseStart) st = "부정출발"; }
       else if (Game.state === "countdown") { cls += " wait"; val = "준비"; st = unseen ? "화면 밖" : "출발선"; prog = 0; }
       else {
         const r = remainParts(p);
@@ -1319,8 +1387,9 @@ const ResetMenu = {
   timer: null,
   open() {
     const active = Game.state === "countdown" || Game.state === "playing";
-    $("rmTitle").textContent = active ? "게임을 멈추고 다시 시작할까요?" : "등록한 참가자를 모두 지울까요?";
-    $("rmSame").hidden = !active;
+    const fs = !active && Game.players.some((p) => p.falseStart); // 등록 중 부정출발 → 참가자는 그대로 두고 판정만 지울 수 있게
+    $("rmTitle").textContent = active ? "게임을 멈추고 다시 시작할까요?" : fs ? "부정출발 판정을 지우고 같은 참가자로 다시 할까요?" : "등록한 참가자를 모두 지울까요?";
+    $("rmSame").hidden = !(active || fs);
     $("resetMenu").hidden = false;
     clearTimeout(this.timer); this.timer = setTimeout(() => this.close(), 8000);
   },
@@ -1333,18 +1402,19 @@ const ResetMenu = {
    ========================================================= */
 const Game = {
   state: "boot", phase: "", players: [], timeLeft: 60, timerId: null, token: 0,
-  graceUntil: 0, startedAt: 0, candidate: null, lastRender: 0, lastBoard: 0, lookEliminated: 0,
+  graceUntil: 0, startedAt: 0, pending: [], regSeq: 0, lastRender: 0, lastBoard: 0, lookEliminated: 0,
   diff() { return CONFIG.DIFFICULTY[Settings.data.difficulty]; },
   threshold() { return this.diff().threshold * Settings.data.sens; },
 
   /* ----- 등록 ----- */
   async enterRegistration(keepPlayers = false, quiet = false) {
-    this.state = "registration"; this.phase = ""; this.token++; this.candidate = null;
+    this.state = "registration"; this.phase = ""; this.token++; this.pending = [];
     clearInterval(this.timerId); HofScreen.close(); $("resultScreen").hidden = true; ResetMenu.close();
     Voice.cancel(); younghee.classList.remove("looking"); stage.className = ""; Board.show(false);
     stage.classList.toggle("line-mode", Settings.data.finish === "line");
     if (!keepPlayers) this.players = [];
-    this.players.forEach((p) => { p.status = "ready"; p.basePose = null; p.baseShoulder = null; p.finishTime = null; p.moveRatio = null; p.overCount = 0; resetProgress(p); });
+    // 같은 참가자로 다시: 출발선(등록한 자리)으로 돌아온 것을 확인한 뒤부터 부정출발 감시
+    this.players.forEach((p) => { p.status = "ready"; p.basePose = null; p.baseShoulder = null; p.finishTime = null; p.moveRatio = null; p.overCount = 0; p.falseStart = false; p.fsArmed = false; p.fsBuf = []; p.fsSince = null; resetProgress(p); });
     this.timeLeft = Settings.data.time; UI.timer(this.timeLeft);
     $("startBtn").disabled = false; $("startBtn").textContent = "게임 시작";
     UI.lockSettings(false);
@@ -1358,46 +1428,94 @@ const Game = {
   promptNext() {
     const n = this.players.length + 1;
     UI.message(`${n}번 참가자, 손을 들어 주세요`, { ms: 3500, color: "#7db3ff" });
-    UI.foot(`${n}번 참가자가 손을 1초간 들면 등록됩니다. 다 모이면 게임 시작을 누르세요.`);
+    UI.foot(`출발선에서 손을 머리 위로 들면 ${n}번으로 등록됩니다.` + (Settings.data.falseStart ? " 등록한 뒤 앞으로 나오면 부정출발이에요." : " 다 모이면 게임 시작을 누르세요."));
     Voice.say(`${n}번 참가자, 손을 들어 주세요`, 1.05, 2200);
   },
+  // 등록: 화면 속 '아직 번호 없는 사람'을 모두 따라가며 사람마다 손 든 시간을 따로 셈
+  //  - 붙어 서 있어 뼈대가 잠깐 끊기거나 손 인식이 깜빡여도 처음부터 다시 세지 않고 이어서 셈
+  //  - 여러 명이 동시에 손을 들어도 각자 채워지는 대로 차례로 등록
+  //  - 손 든 동안의 옷 색·체형과 몸 크기(출발선 거리)를 기억
   handleRegistration(dets, now) {
-    if (this.players.length >= CONFIG.MAX_PLAYERS) { this.candidate = null; return; }
-    // 아직 등록되지 않은 사람 가운데 손을 든 사람만 (이미 등록된 사람은 추적기가 먼저 짝지어 둠)
-    const free = dets.filter((d) => !d.player && d.handRaised);
-    const k = aspectHW();
-    let c = this.candidate, pick = null;
-    if (c) pick = free.find((d) => { // 1초 동안 같은 사람이 계속 손을 들고 있는지 위치와 옷 색으로 확인
-      const a = appDist(d.f, c.f);
-      return Math.hypot(d.cx - c.x, (d.cy - c.y) * k) < 0.9 * Math.max(d.shoulder, c.shoulder) && (a == null || a < 0.45);
-    });
-    if (!pick) {
-      // 0.35초 이내로 잠깐 끊긴 것은 기다려 줌 (붙어 서 있으면 뼈대가 순간적으로 흔들리거나 빠짐)
-      if (c && now - c.lastSeen < 350) return;
-      if (!free.length) { this.candidate = null; return; }
-      pick = free.reduce((a, b) => (b.q > a.q ? b : a));
-      c = this.candidate = { x: pick.cx, y: pick.cy, shoulder: pick.shoulder, start: now, lastSeen: now, det: pick, f: featClone(pick.f), n: 1 };
-    } else {
-      c.x = pick.cx; c.y = pick.cy; c.shoulder = pick.shoulder; c.det = pick; c.lastSeen = now;
-      featBlend(c.f, pick.f, 1 / ++c.n); // 손 든 1초 동안의 모습을 평균 내어 기억
+    const k = aspectHW(), full = this.players.length >= CONFIG.MAX_PLAYERS;
+    for (const d of dets) { // 새로 보인 사람 → 등록 대기
+      if (full || d.player || d.pend || d.q < 0.4 || this.pending.length >= 8) continue;
+      const u = { isPending: true, x: d.cx, y: d.cy, vx: 0, vy: 0, shoulder: d.shoulder, lastSeen: now, prevT: now,
+        anchor: featClone(d.f), adapt: featClone(d.f), hold: 0, holdF: null, holdN: 0, sizes: [], det: d };
+      this.pending.push(u); d.pend = u;
     }
-    if (now - c.start >= CONFIG.REGISTER_HOLD_MS) { this.register(pick, now, c.f); this.candidate = null; }
+    for (const u of this.pending) {
+      const d = dets.find((x) => x.pend === u) || null;
+      u.det = d;
+      if (!d) { if (now - u.lastSeen > CONFIG.REGISTER_GAP_MS) { u.hold = 0; u.holdF = null; u.holdN = 0; u.sizes = []; } continue; }
+      // 끊기기 직전(0.2초 안)과 다시 잡힌 지금 모두 손을 들고 있었으면, 끊긴 동안도 계속 들고 있었던 것으로 셈 (최대 1초)
+      const gap = Math.max(0, now - u.prevT);
+      const dt = d.handRaised && u.upAt != null && u.prevT - u.upAt <= 200 ? Math.min(gap, CONFIG.REGISTER_GAP_MS) : Math.min(gap, 100);
+      u.prevT = now;
+      if (d.handRaised) {
+        u.upAt = now; u.hold += dt;
+        if (!u.holdF) { u.holdF = featClone(d.f); u.holdN = 1; } else featBlend(u.holdF, d.f, 1 / ++u.holdN); // 손 든 동안의 모습 평균
+        const sz = bodySizes(d.lm, k); if (sz) { u.sizes.push(sz); if (u.sizes.length > 40) u.sizes.shift(); }
+      } else u.hold = Math.max(0, u.hold - 0.6 * dt); // 손 인식이 잠깐 깜빡인 것은 조금만 깎음
+      if (u.hold <= 0) { u.holdF = null; u.holdN = 0; u.sizes = []; }
+    }
+    this.pending = this.pending.filter((u) => now - u.lastSeen < 1500);
+    if (full) return;
+    const ready = this.pending.filter((u) => u.det && u.hold >= CONFIG.REGISTER_HOLD_MS).sort((a, b) => b.hold - a.hold);
+    for (const u of ready) {
+      if (this.players.length >= CONFIG.MAX_PLAYERS) break;
+      // 방금까지 등록된 선수가 있던 바로 그 자리의 뼈대(한 사람을 두 번 잡은 것)는 등록하지 않음
+      if (this.players.some((p) => now - p.lastSeen < 1500 && Math.hypot(p.x - u.x, (p.y - u.y) * k) < 0.6 * Math.max(p.shoulder, u.shoulder))) { u.hold = 0; continue; }
+      this.register(u, now);
+    }
   },
-  register(det, now, feats) {
+  register(src, now, feats) { // src: 등록 대기 중인 사람 또는 뼈대
     const id = this.players.length + 1;
-    const anchor = featClone(feats || det.f); // 이 사람의 신체 특성 기억 (등록 뒤 서 있는 동안 더 다듬음)
-    const p = { id, color: CONFIG.COLORS[id - 1], status: "ready", type: Settings.data.defaultType, x: det.cx, y: det.cy, vx: 0, vy: 0, shoulder: det.shoulder,
-      anchor, adapt: featClone(anchor), basePose: null, baseShoulder: null, shoulderSamples: [], overCount: 0, moveRatio: null, lastSeen: now, finishTime: null };
-    resetProgress(p); this.players.push(p); det.player = p;
+    const anchor = featClone(feats || src.holdF || src.anchor || src.f); // 이 사람의 신체 특성 기억 (등록 뒤 서 있는 동안 더 다듬음)
+    const p = { id, color: CONFIG.COLORS[id - 1], status: "ready", type: Settings.data.defaultType, x: src.x ?? src.cx, y: src.y ?? src.cy, vx: src.vx || 0, vy: src.vy || 0, shoulder: src.shoulder,
+      anchor, adapt: featClone(anchor), basePose: null, baseShoulder: null, shoulderSamples: [], overCount: 0, moveRatio: null, lastSeen: now, finishTime: null,
+      ref: sizeRef(src.sizes), fsArmed: true, fsBuf: [], fsSince: null, falseStart: false }; // ref: 등록한 자리(출발선)에서의 몸 크기
+    resetProgress(p); this.players.push(p);
+    const det = src.isPending ? src.det : src;
+    if (det) { det.player = p; det.pend = null; }
+    if (src.isPending) this.pending = this.pending.filter((u) => u !== src);
     Sfx.pass();
     UI.message(`${id}번 선수 등록`, { ms: 1500, color: p.color });
     UI.renderPlayers(this.players, now); UI.controls(); HallOfFame.render();
+    const seq = ++this.regSeq;
     (async () => {
       await Voice.say(`${id}번 등록`, 1.1, 1200);
-      if (this.state !== "registration") return;
+      if (this.state !== "registration" || seq !== this.regSeq) return; // 연달아 등록되면 마지막 안내만
       if (this.players.length < CONFIG.MAX_PLAYERS) this.promptNext();
       else { UI.message("5명 등록 완료. 게임 시작을 누르세요", { ms: 3000 }); UI.foot("게임 시작 버튼을 누르면 3초 뒤 시작합니다."); Voice.say("모두 등록되었습니다. 게임을 시작하세요", 1.05, 2500); }
     })();
+  },
+
+  // 부정출발: 등록한 자리(손 든 순간의 몸 크기)보다 허용 거리 넘게 앞으로 나오면 바로 탈락
+  //  - 등록 중: 등록을 마친 선수부터 감시 (같은 참가자로 다시 할 때는 출발선으로 돌아온 것을 확인한 뒤부터)
+  //  - 3·2·1 동안: 모든 선수 (출발선으로 돌아오지 않은 채 시작해도 부정출발)
+  checkFalseStart(dets, now) {
+    if (!Settings.data.falseStart) return;
+    const R = falseStartRatio(), cd = this.state === "countdown";
+    for (const d of dets) {
+      const p = d.player;
+      if (!p || !p.ref || p.falseStart || p.status !== (cd ? "alive" : "ready")) continue;
+      if (d.crowded || !clearOwner(d)) continue; // 다른 사람과 포개졌거나 누구인지 헷갈린 순간은 보류
+      const a = appDist(d.f, p.anchor); if (a != null && a > 0.45) continue; // 옷 색이 많이 다르면 다른 사람 뼈대일 수 있음
+      const r = sizeRatio(d.lm, p.ref); if (r == null) continue;
+      if (!p.fsBuf) p.fsBuf = [];
+      p.fsBuf.push(r); if (p.fsBuf.length > 9) p.fsBuf.shift();
+      const rm = p.fsRatio = medianAvg(p.fsBuf);
+      if (!p.fsArmed) { if (p.fsBuf.length >= 5 && rm < R - 0.03) p.fsArmed = true; if (!cd) continue; }
+      if (p.fsBuf.length >= 5 && rm >= R) { if (p.fsSince == null) p.fsSince = now; if (now - p.fsSince >= CONFIG.FALSE_START_MS) this.falseStart(p, now); }
+      else p.fsSince = null;
+    }
+  },
+  falseStart(p, now) {
+    p.falseStart = true; p.status = "eliminated"; p.fsSince = null;
+    Sfx.out(); Voice.cancel();
+    UI.message(`${p.id}번 부정출발! 탈락`, { ms: 2400, color: "var(--pink)" });
+    Voice.say(`${p.id}번, 부정출발 탈락`, 1.0, 1800);
+    UI.renderPlayers(this.players, now); Board.update(this.players, now);
   },
 
   // 참가자 목록의 '어린이/성인' 버튼 (게임 중에는 바꿀 수 없음)
@@ -1423,21 +1541,24 @@ const Game = {
   /* ----- 시작 ----- */
   async start() {
     if (this.state !== "registration" || !this.players.length) { UI.message("참가자가 없습니다", { ms: 1800, color: "#ffb020" }); return; }
+    if (!this.players.some((p) => !p.falseStart)) { UI.message("모두 부정출발로 탈락했어요 · ↺ 리셋 → 같은 참가자로 다시", { ms: 3200, color: "#ffb020" }); return; }
     const myToken = ++this.token;
-    this.state = "countdown"; this.candidate = null; Voice.cancel(); ResetMenu.close(); UI.controls();
+    this.state = "countdown"; this.pending = []; Voice.cancel(); ResetMenu.close(); UI.controls();
     $("startBtn").disabled = true; $("startBtn").textContent = "진행 중…";
     UI.lockSettings(true); HallOfFame.render();
-    this.players.forEach((p) => { p.status = "alive"; p.shoulderSamples = []; p.basePose = null; p.baseShoulder = null; p.overCount = 0; p.moveRatio = null; resetProgress(p); });
+    this.players.forEach((p) => { p.status = p.falseStart ? "eliminated" : "alive"; p.fsBuf = []; p.fsSince = null; p.shoulderSamples = []; p.basePose = null; p.baseShoulder = null; p.overCount = 0; p.moveRatio = null; resetProgress(p); });
     UI.renderPlayers(this.players, performance.now());
     Board.build(this.players); Board.show(true); Board.update(this.players, performance.now());
     UI.phase("출발선에 서세요", "");
-    UI.foot("술래가 말하는 동안 움직이고, 돌아보면 멈추세요.");
+    UI.foot(Settings.data.falseStart ? "3·2·1 동안 등록한 자리보다 앞으로 나오면 부정출발로 탈락합니다." : "술래가 말하는 동안 움직이고, 돌아보면 멈추세요.");
     Voice.say("출발선에 서세요. 3, 2, 1", 1.0, 3200);
     for (const n of [3, 2, 1]) { if (this.token !== myToken) return; UI.message(String(n), { ms: 900, big: true }); Sfx.tick(); await wait(1000); }
     if (this.token !== myToken) return;
     this.players.forEach((p) => { if (p.shoulderSamples.length) p.baseShoulder = median(p.shoulderSamples); if (p.ankleSamples.length) p.baseAnkle = median(p.ankleSamples); });
     this.state = "playing"; this.startedAt = performance.now();
+    if (!this.players.some((p) => p.status === "alive")) { this.end("부정출발로 모두 탈락"); return; }
     UI.message("시작!", { ms: 1000, big: true, color: "var(--teal)" });
+    UI.foot("술래가 말하는 동안 움직이고, 돌아보면 멈추세요.");
     this.timerId = setInterval(() => {
       this.timeLeft--; UI.timer(this.timeLeft);
       if (this.timeLeft <= 10 && this.timeLeft > 0) Sfx.tick();
@@ -1570,7 +1691,7 @@ const Game = {
     $("resultSub").textContent = passed.length ? `${passed.length}명이 통과했습니다.` : "아무도 통과하지 못했습니다.";
     $("resultList").innerHTML = [
       ...passed.map((p, i) => `<div class="rl success"><span class="rank">${i + 1}</span><span class="name" style="color:${p.color}">${p.id}번 선수 · ${TYPE_LABEL[p.type]}</span><span class="t">${fmtSec(p.finishTime)}초</span></div>`),
-      ...outs.map((p) => `<div class="rl eliminated"><span class="rank">–</span><span class="name">${p.id}번 선수 · ${TYPE_LABEL[p.type]}</span><span class="t">탈락</span></div>`),
+      ...outs.map((p) => `<div class="rl eliminated"><span class="rank">–</span><span class="name">${p.id}번 선수 · ${TYPE_LABEL[p.type]}</span><span class="t">${p.falseStart ? "부정출발" : "탈락"}</span></div>`),
     ].join("");
     // 명예의 전당: 부문(어린이·성인)별 이번 게임 1등 → 다음 화면에서 이름 등록·익명 등록을 누르면 누적 기록에 저장, 취소하면 저장 안 함
     const winners = [];
@@ -1623,7 +1744,7 @@ function draw(dets, now) {
 
     if (p) {
       const rp = Game.state === "playing" && p.status === "alive" ? remainParts(p) : null;
-      const label = p.status === "eliminated" ? `${p.id}번 탈락` : p.status === "success" ? `${p.id}번 통과` : rp ? `${p.id}번 · ${rp.num}${rp.unit}` : `${p.id}번`;
+      const label = p.status === "eliminated" ? `${p.id}번 ${p.falseStart ? "부정출발" : "탈락"}` : p.status === "success" ? `${p.id}번 통과` : rp ? `${p.id}번 · ${rp.num}${rp.unit}` : `${p.id}번`;
       ctx.font = `800 ${fontPx}px ${getComputedStyle(document.body).fontFamily}`;
       const tw = ctx.measureText(label).width + fontPx * 1.2, th = fontPx * 1.7;
       const lx = X(nose.x) - tw / 2, ly = Y(nose.y) - hr - th - 6;
@@ -1637,10 +1758,10 @@ function draw(dets, now) {
       }
     }
   }
-  // 등록 게이지
-  const c = Game.candidate;
-  if (Game.state === "registration" && c?.det) {
-    const nose = c.det.lm[0], prog = clamp((now - c.start) / CONFIG.REGISTER_HOLD_MS, 0, 1), r = c.det.shoulder * W * 0.45;
+  // 등록 게이지 (손 든 사람마다)
+  if (Game.state === "registration") for (const c of Game.pending) {
+    if (!c.det || c.hold <= 0) continue;
+    const nose = c.det.lm[0], prog = clamp(c.hold / CONFIG.REGISTER_HOLD_MS, 0, 1), r = c.det.shoulder * W * 0.45;
     ctx.lineWidth = Math.max(4, W / 200); ctx.strokeStyle = "rgba(255,255,255,.25)";
     ctx.beginPath(); ctx.arc(X(nose.x), Y(nose.y), r, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = "#7db3ff"; ctx.beginPath(); ctx.arc(X(nose.x), Y(nose.y), r, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.stroke();
@@ -1700,9 +1821,19 @@ function onFrame(list, now, img = sampleFrame()) {
     const a = dets[i], b = dets[j];
     if (Math.hypot(a.cx - b.cx, (a.cy - b.cy) * k) < 0.8 * Math.max(a.shoulder, b.shoulder)) a.crowded = b.crowded = true;
   }
-  Tracker.match(dets, Game.players, now);
-  if (Game.state === "registration") Game.handleRegistration(dets, now);
-  else if (Game.state === "countdown") Game.collectBase(dets);
+  // 붙어 서 있을 때 한 사람이 든 손을 옆 사람 뼈대도 같이 잡으면, 그 손목 바로 아래에 어깨가 있는 사람의 손으로만 인정
+  for (let i = 0; i < dets.length; i++) for (let j = i + 1; j < dets.length; j++) {
+    const a = dets[i], b = dets[j], ha = a.handRaised, hb = b.handRaised;
+    if (!ha || !hb || Math.hypot(ha.x - hb.x, (ha.y - hb.y) * k) > 0.35 * Math.min(a.shoulder, b.shoulder)) continue;
+    const near = (d) => Math.min(Math.abs(d.lm[11].x - d.handRaised.x), Math.abs(d.lm[12].x - d.handRaised.x)) / d.shoulder;
+    (near(a) <= near(b) ? b : a).handRaised = null;
+  }
+  // 등록 중에는 아직 번호 없는 사람도 함께 짝지어 둠 → 옆 선수가 잠깐 안 잡혀도 손 든 사람의 뼈대를 뺏어 가지 않음
+  const reg = Game.state === "registration";
+  Tracker.match(dets, reg ? [...Game.players, ...Game.pending] : Game.players, now);
+  for (const d of dets) if (d.player && d.player.isPending) { d.pend = d.player; d.player = null; }
+  if (reg) { Game.handleRegistration(dets, now); Game.checkFalseStart(dets, now); }
+  else if (Game.state === "countdown") { Game.collectBase(dets); Game.checkFalseStart(dets, now); }
   else if (Game.state === "playing") Game.judge(dets, now);
   draw(dets, now);
   if (now - Game.lastRender > 250) { Game.lastRender = now; UI.renderPlayers(Game.players, now); }
@@ -1726,6 +1857,11 @@ function bindSettings() {
   $("difficulty").value = d.difficulty; $("timeLimit").value = String(d.time); $("finishMode").value = d.finish;
   $("mirrorMode").value = d.mirror; $("modelSel").value = d.model; $("sens").value = d.sens; $("voiceOn").checked = d.voice;
   $("sensVal").textContent = `${Number(d.sens).toFixed(1)}×`;
+  d.fsTol = clamp(+d.fsTol || 0.5, 0.3, 1.5); if (typeof d.falseStart !== "boolean") d.falseStart = true;
+  const updateFs = () => { $("fsOn").checked = d.falseStart; $("fsTol").value = d.fsTol; $("fsTolVal").textContent = `${d.fsTol.toFixed(1)}m`; $("fsTolRow").hidden = $("fsHint").hidden = !d.falseStart; };
+  updateFs();
+  $("fsOn").onchange = (e) => { d.falseStart = e.target.checked; updateFs(); Settings.save(); };
+  $("fsTol").oninput = (e) => { d.fsTol = +e.target.value; updateFs(); Settings.save(); };
   const updateFinishHints = () => {
     const fix = (v) => Math.round(clamp(v, 1, d.startDist - 1) * 10) / 10; // 통과 거리는 출발선보다 1m 이상 술래 쪽
     d.passAdult = fix(d.passAdult); d.passChild = fix(d.passChild);
