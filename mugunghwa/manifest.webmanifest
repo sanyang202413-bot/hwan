@@ -1,0 +1,17 @@
+{
+  "name": "무궁화 꽃이 피었습니다 · 출사동이와 함께 하는 AI 모션인식 게임",
+  "short_name": "무궁화 게임",
+  "description": "카메라 하나로 최대 5명이 함께 하는 '무궁화 꽃이 피었습니다' AI 모션인식 게임",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#0a0a0c",
+  "theme_color": "#0a0a0c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0c">
+<meta name="description" content="출사동이와 함께 하는 '무궁화 꽃이 피었습니다' AI 모션인식 게임. 카메라 하나로 최대 5명이 함께 즐겨요.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="무궁화 꽃이 피었습니다">
+<meta property="og:title" content="무궁화 꽃이 피었습니다 · 출사동이와 함께 하는 AI 모션인식 게임">
+<meta property="og:description" content="카메라 하나로 최대 5명! 술래 출사동이가 돌아볼 때 움직이면 탈락, 결승선까지 들어오면 성공.">
+<meta property="og:url" content="https://sanyang202413-bot.github.io/hwan/mugunghwa/">
+<meta property="og:image" content="https://sanyang202413-bot.github.io/hwan/mugunghwa/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<title>무궁화 꽃이 피었습니다 · AI 모션인식</title>
+<style>
+  :root{
+    --pink:#ff107a; --pink-soft:rgba(255,16,122,.18);
+    --teal:#00c896; --teal-soft:rgba(0,200,150,.18);
+    --gold:#ffb020;
+    --bg:#0a0a0c; --panel:#121216; --line:rgba(255,255,255,.1);
+    --text:#f4f4f5; --muted:#9a9aa6;
+    --font:"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+    --num:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden;-webkit-user-select:none;user-select:none}
+  button,select,input{font-family:inherit;font-size:inherit;color:inherit}
+  button{cursor:pointer;border:0}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+  /* ---------- 전체 레이아웃 (가로: 우측 패널 / 세로: 하단 패널) ---------- */
+  #app{display:grid;grid-template-columns:1fr 320px;height:100vh;height:100dvh;width:100vw}
+  #stage{position:relative;overflow:hidden;background:#000}
+  #panel{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  @media (orientation:portrait), (max-width:640px){
+    #app{grid-template-columns:1fr;grid-template-rows:1fr 42vh;grid-template-rows:1fr 42dvh}
+    #panel{border-left:0;border-top:1px solid var(--line)}
+  }
+
+  /* ---------- 카메라 & 오버레이 ---------- */
+  video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:contrast(1.08) saturate(1.05);background:#000}
+  video.mirror{transform:scaleX(-1)}
+  #overlay{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;z-index:10}
+  .vignette{position:absolute;inset:0;pointer-events:none;z-index:11;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%)}
+  #stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:12;transition:box-shadow .25s}
+  #stage.looking::after{box-shadow:inset 0 0 0 6px var(--pink),inset 0 0 90px rgba(255,16,122,.35)}
+  #stage.speaking::after{box-shadow:inset 0 0 0 6px var(--teal),inset 0 0 60px rgba(0,200,150,.2)}
+
+  /* 좌상단 남은 시간 (멀리서도 보이게 크게) */
+  .hud-top{position:absolute;top:12px;left:14px;z-index:30;padding:8px 16px 12px;border-radius:16px;background:rgba(6,6,10,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,.35)}
+  .tlabel{display:flex;align-items:center;gap:10px;font-size:clamp(12px,2vmin,20px);font-weight:800;color:#d4d4dc}
+  .rec{display:flex;align-items:center;gap:5px;color:#ff4d4d;font-weight:800;font-size:.78em;letter-spacing:.04em}
+  .rec i{width:.62em;height:.62em;border-radius:50%;background:#ff4d4d;box-shadow:0 0 10px #ff4d4d;animation:blink 1.1s infinite}
+  @keyframes blink{50%{opacity:.15}}
+  .timer{font-family:var(--num);font-size:clamp(48px,14vmin,160px);line-height:1;font-weight:800;letter-spacing:.01em;text-shadow:0 3px 16px rgba(0,0,0,.6);transform-origin:left center;font-variant-numeric:tabular-nums}
+  .timer small{font-family:var(--font);font-size:.3em;font-weight:700;color:var(--muted);margin-left:4px}
+  .tbar{height:clamp(5px,1vmin,10px);margin-top:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .tbar i{display:block;height:100%;width:100%;border-radius:inherit;background:var(--teal);transition:width 1s linear,background .3s}
+  .hud-top.low .timer{color:#ff4d4d;animation:tpulse 1s ease-in-out infinite}
+  .hud-top.low .tbar i{background:#ff4d4d}
+  @keyframes tpulse{50%{transform:scale(1.06)}}
+  @media (prefers-reduced-motion:reduce){.hud-top.low .timer,.rec i{animation:none}}
+
+  /* 우상단 상태 배지 (참가자가 멀리서도 보이게) */
+  .phase{position:absolute;top:14px;right:16px;z-index:30;padding:8px 16px;border-radius:999px;font-weight:800;font-size:clamp(14px,2.4vw,22px);background:rgba(0,0,0,.55);border:1px solid var(--line);backdrop-filter:blur(8px);transition:all .25s}
+  .phase.go{background:var(--teal);color:#032a20;border-color:transparent;box-shadow:0 0 30px rgba(0,200,150,.6)}
+  .phase.stop{background:var(--pink);color:#fff;border-color:transparent;box-shadow:0 0 30px rgba(255,16,122,.7)}
+
+  /* 하단 남은 거리 보드 (멀리서도 보이게 크게) */
+  .dboard{position:absolute;left:12px;right:12px;bottom:10px;z-index:30;display:flex;justify-content:center;gap:10px;pointer-events:none}
+  .dcard{flex:1 1 0;min-width:0;max-width:300px;container-type:inline-size;padding:8px 12px 10px;border-radius:14px;background:rgba(6,6,10,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--line);border-top:4px solid var(--pc);box-shadow:0 8px 24px rgba(0,0,0,.4);transition:box-shadow .2s,border-color .2s,opacity .3s}
+  .dc-top{display:flex;align-items:baseline;justify-content:space-between;gap:6px;font-size:clamp(12px,2.2vmin,22px);font-weight:800;line-height:1.25}
+  .dc-id{color:var(--pc);white-space:nowrap}
+  .dc-st{font-size:.72em;font-weight:700;color:#b8b8c4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dc-val{font-family:var(--num);font-weight:800;line-height:1.05;margin:2px 0 6px;white-space:nowrap;letter-spacing:-.02em;font-variant-numeric:tabular-nums;font-size:clamp(22px,7vmin,80px);font-size:clamp(20px,30cqi,84px)}
+  .dc-val small{font-size:.48em;font-weight:700;color:#b8b8c4;margin-left:2px}
+  .dc-bar{height:clamp(5px,1vmin,10px);border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .dc-bar i{display:block;height:100%;width:0;border-radius:inherit;background:var(--pc);transition:width .25s}
+  .dcard.confirm{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal),0 0 30px rgba(0,200,150,.55)}
+  .dcard.confirm .dc-st{color:var(--teal)}
+  .dcard.success{border-top-color:var(--teal)}
+  .dcard.success .dc-val{font-family:var(--font);color:var(--teal)}
+  .dcard.success .dc-bar i{background:var(--teal)}
+  .dcard.eliminated{opacity:.45}
+  .dcard.eliminated .dc-val{font-family:var(--font);color:var(--pink)}
+  .dcard.wait .dc-val,.dcard.unseen .dc-val{font-family:var(--font);color:#8a8a96}
+  @media (orientation:portrait),(max-width:640px){.dboard{left:6px;right:6px;bottom:6px;gap:5px}.dcard{padding:5px 7px 7px;border-radius:10px}}
+  .dc-id em{font-style:normal;font-size:.72em;font-weight:700;color:#d4d4dc;margin-left:3px}
+
+  /* 명예의 전당 (게임 화면 오른쪽 위) */
+  #stage{container-type:inline-size}
+  .hof-card{position:absolute;top:66px;right:16px;z-index:30;width:clamp(180px,19vw,250px);padding:10px 14px 12px;border-radius:14px;background:rgba(6,6,10,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,176,32,.38);box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:none}
+  @container (max-width:640px){.hof-card{display:none}}
+  .hof-title{font-family:"궁서","궁서체","Gungsuh","GungSuh","GungsuhChe","Batang","바탕","Noto Serif KR","Noto Serif CJK KR",serif;color:var(--gold);font-size:clamp(15px,1.7vw,20px);letter-spacing:.14em;text-align:center;margin-bottom:4px}
+  .hof-cat{font-size:11px;font-weight:800;color:var(--muted);margin:6px 0 3px;letter-spacing:.02em}
+  .hof-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .hof-list li{display:flex;align-items:baseline;gap:8px;padding:2px 4px;border-radius:7px;font-size:clamp(13px,1.45vw,17px);font-weight:700;line-height:1.35}
+  .hof-list li b{flex:none;width:1.2em;text-align:center;font-family:var(--num);color:var(--muted)}
+  .hof-list li.r1 b{color:var(--gold)}.hof-list li.r2 b{color:#c9ced8}.hof-list li.r3 b{color:#d39060}
+  .hof-list .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hof-list .tm{flex:none;font-family:var(--num);font-size:.9em;color:#ececf2;font-variant-numeric:tabular-nums}
+  .hof-list .tm small{font-family:var(--font);font-size:.75em;color:var(--muted);margin-left:1px}
+  .hof-list li.none{display:block;color:var(--muted);font-size:12px;font-weight:600;text-align:center;padding:4px 0}
+  .hof-list li.me{background:rgba(255,176,32,.16);box-shadow:inset 0 0 0 1px rgba(255,176,32,.45)}
+  .hof-card.compact{width:auto;min-width:170px;max-width:clamp(180px,24vw,290px);padding:6px 12px 8px;opacity:.92}
+  .hof-card.compact .hof-title{font-size:13px;letter-spacing:.1em;margin-bottom:2px}
+  .hof-card.compact .hof-list li{font-size:clamp(12px,1.3vw,15px)}
+  .hof-list .cat{flex:none;font-size:.78em;font-weight:800;color:var(--muted)}
+
+  /* 중앙 메시지 */
+  #msg{position:absolute;left:50%;top:70%;transform:translate(-50%,-50%);z-index:40;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;text-align:center;padding:14px 28px;border-radius:18px;background:rgba(0,0,0,.65);backdrop-filter:blur(10px);border:1px solid var(--line);font-size:clamp(22px,4vw,40px);font-weight:800;letter-spacing:-.01em;max-width:90%}
+  #msg.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  #msg.big{font-size:clamp(60px,14vw,140px);padding:10px 40px;font-family:var(--num)}
+
+  /* 결승선 (하단 라인 모드일 때만 표시) */
+  .finish{position:absolute;left:0;right:0;bottom:0;height:20%;z-index:9;display:none;align-items:flex-start;justify-content:center;padding-top:8px;background:linear-gradient(to top,rgba(0,200,150,.35),transparent);border-top:3px dashed rgba(0,200,150,.8)}
+  .finish span{position:relative;top:-40px;font-size:13px;font-weight:700;color:var(--teal);background:rgba(0,0,0,.5);padding:4px 12px;border-radius:999px}
+  #stage.line-mode .finish{display:flex}
+
+  /* ---------- 술래 캐릭터 (출사동이 머리, 3D 회전) ---------- */
+  #younghee{position:absolute;left:50%;top:34%;transform:translate(-50%,-50%);width:min(52vmin,440px);aspect-ratio:1.25;perspective:1100px;z-index:35;pointer-events:none}
+  #younghee .head{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.65,-.3,.3,1.3)}
+  #younghee.looking .head{transform:rotateY(180deg) scale(1.18)}
+  @media (prefers-reduced-motion:reduce){#younghee .head{transition:transform .2s linear}}
+  .face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  .face::before{content:"";position:absolute;left:50%;top:58%;width:78%;height:78%;transform:translate(-50%,-50%);border-radius:50%;z-index:0;transition:opacity .3s}
+  .face img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;z-index:1}
+  .face.back::before{background:radial-gradient(circle,rgba(0,0,0,.55),transparent 70%)}
+  .face.back img{filter:drop-shadow(0 12px 22px rgba(0,0,0,.6)) brightness(.9)}
+  .face.front{transform:rotateY(180deg)}
+  .face.front::before{background:radial-gradient(circle,rgba(255,16,122,.75),rgba(255,16,122,.15) 55%,transparent 72%)}
+  .face.front img{filter:drop-shadow(0 0 18px rgba(255,16,122,.55)) drop-shadow(0 12px 22px rgba(0,0,0,.5))}
+  #younghee.looking .face.front::before{animation:glow .9s ease-in-out infinite alternate}
+  @keyframes glow{to{transform:translate(-50%,-50%) scale(1.15);opacity:.7}}
+  .scan{position:absolute;left:8%;right:8%;top:0;height:3px;background:linear-gradient(90deg,transparent,#fff,transparent);opacity:0;z-index:2}
+  #younghee.looking .scan{opacity:.85;animation:scan 1.6s linear infinite}
+  @keyframes scan{from{top:10%}to{top:90%}}
+  @media (prefers-reduced-motion:reduce){#younghee.looking .scan,#younghee.looking .face.front::before{animation:none}}
+  @media (orientation:portrait),(max-width:640px){#younghee{top:40%}}
+  .facepick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .facepick label{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border:1px dashed var(--line);border-radius:10px;cursor:pointer;font-size:12px;color:var(--muted)}
+  .facepick img{width:64px;height:52px;object-fit:contain;background:#222;border-radius:8px}
+  .facepick input{display:none}
+
+  /* ---------- 우측 패널 ---------- */
+  .p-head{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .p-head h2{margin:0;font-size:17px;font-weight:800;letter-spacing:-.01em}
+  .p-head .status{font-size:12px;color:var(--teal);font-weight:700}
+  .p-body{flex:1;min-height:0;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px}
+  .p-body::-webkit-scrollbar{width:6px}.p-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:6px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
+  label.f select,label.f input[type=range]{width:100%}
+  select{appearance:none;-webkit-appearance:none;background:#1c1c22 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239a9aa6' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 10px center;border:1px solid var(--line);border-radius:10px;padding:9px 30px 9px 11px;font-size:14px;font-weight:600}
+  select:disabled{opacity:.5}
+  input[type=range]{accent-color:var(--pink)}
+  .btn{display:block;width:100%;padding:14px;border-radius:12px;font-weight:800;font-size:16px;transition:transform .08s,box-shadow .2s,background .2s}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:var(--pink);color:#fff;box-shadow:0 0 22px rgba(255,16,122,.45)}
+  .btn.primary:hover{box-shadow:0 0 36px rgba(255,16,122,.7)}
+  .btn.primary:disabled{background:#2a2a32;color:var(--muted);box-shadow:none;cursor:not-allowed}
+  .btn.ghost{background:#1c1c22;color:var(--text);border:1px solid var(--line);padding:10px;font-size:14px;font-weight:700}
+  .ctrl-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+  .btn.reset{width:auto;padding:14px 16px;background:#1c1c22;color:var(--text);border:1px solid var(--line);font-size:15px;white-space:nowrap}
+  .btn.reset.active{border-color:var(--pink);color:#ff6aa8;box-shadow:0 0 14px rgba(255,16,122,.25)}
+  .btn.reset:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+  .reset-menu{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:#1a1a20;border:1px solid var(--pink);box-shadow:0 0 24px rgba(255,16,122,.18)}
+  .reset-menu p{margin:0 0 2px;font-size:13px;font-weight:800;color:var(--text)}
+  .reset-menu .btn{padding:11px;font-size:14px}
+  .rm-cancel{background:none;color:var(--muted);font-size:13px;font-weight:700;padding:4px}
+  details{border:1px solid var(--line);border-radius:12px;padding:0 12px}
+  details summary{cursor:pointer;padding:10px 0;font-size:13px;color:var(--muted);font-weight:700;list-style:none;display:flex;justify-content:space-between}
+  details summary::after{content:"+";font-size:16px}
+  details[open] summary::after{content:"−"}
+  details .inner{display:flex;flex-direction:column;gap:10px;padding-bottom:12px}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)}
+  .check input{width:18px;height:18px;accent-color:var(--teal)}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.5;margin:0}
+  .lrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .lrow b{color:var(--text);font-family:var(--num);font-weight:700}
+  .subgroup{display:flex;flex-direction:column;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+
+  .players h3{margin:0 0 10px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;font-weight:700}
+  .players h3 b{color:var(--text);font-family:var(--num)}
+  .plist{display:flex;flex-direction:column;gap:8px}
+  .pl{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#18181e;border:1px solid var(--line);transition:opacity .3s}
+  .pl .bar{width:5px;height:34px;border-radius:4px;flex:none}
+  .pl .vest{width:26px;height:30px;border-radius:5px 5px 8px 8px;flex:none;border:2px solid rgba(255,255,255,.18);position:relative}
+  .pl .vest::before{content:"";position:absolute;left:35%;right:35%;top:-2px;height:5px;background:var(--panel);border-radius:0 0 4px 4px}
+  .pl .info{flex:1;min-width:0}
+  .pl .name{font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0}
+  .st.unseen{background:#26262e;color:#9a9aa6}
+  .pl .type{flex:none;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:#24242c;color:#d4d4dc;line-height:1.2}
+  .pl .type.child{background:rgba(0,200,150,.12);color:#5fe0bd;border-color:rgba(0,200,150,.38)}
+  .pl .type.adult{background:rgba(255,176,32,.12);color:#ffc75a;border-color:rgba(255,176,32,.38)}
+  .pl .type:not(:disabled):hover{filter:brightness(1.25)}
+  .pl .type:disabled{cursor:default}
+  .pl .sub{font-size:11px;color:var(--muted);margin-top:2px;display:flex;gap:6px;align-items:center}
+  .pl .meter{height:4px;flex:1;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+  .pl .meter i{display:block;height:100%;width:0;background:var(--teal);transition:width .1s}
+  .pl .meter i.warn{background:var(--gold)}.pl .meter i.over{background:var(--pink)}
+  .pl .st{font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;flex:none}
+  .st.ready{background:#26262e;color:var(--muted)}
+  .st.alive{background:rgba(59,130,246,.2);color:#7db3ff}
+  .st.eliminated{background:var(--pink-soft);color:var(--pink)}
+  .st.success{background:var(--teal-soft);color:var(--teal)}
+  .pl.eliminated{opacity:.45}
+  .empty{padding:22px 12px;text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:13px;line-height:1.6}
+  .p-foot{padding:10px 18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.5}
+
+  /* ---------- 시작 화면 / 결과 화면 ---------- */
+  .screen{position:absolute;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 70% 80%,rgba(0,200,150,.10),transparent 55%),rgba(6,6,8,.97);backdrop-filter:blur(10px);overflow:hidden}
+  #resultScreen{overflow:auto}
+  .screen[hidden]{display:none}
+  .card{width:min(560px,100%);display:flex;flex-direction:column;gap:18px;text-align:center;position:relative;z-index:1}
+  .start-bg{position:absolute;right:max(0px,calc(50% - 640px));bottom:0;height:min(90%,110vh);width:auto;max-width:42vw;object-fit:contain;object-position:bottom;opacity:.5;z-index:0;pointer-events:none;
+    -webkit-mask-image:linear-gradient(to right,transparent 0%,#000 22%,#000 55%,transparent 100%);mask-image:linear-gradient(to right,transparent 0%,#000 22%,#000 55%,transparent 100%);filter:saturate(.95)}
+  @media (orientation:portrait),(max-width:760px){.start-bg{right:50%;transform:translateX(50%);max-width:80vw;height:70%;opacity:.3;-webkit-mask-image:linear-gradient(to top,#000 60%,transparent);mask-image:linear-gradient(to top,#000 60%,transparent)}}
+  .eyebrow{font-family:"궁서","궁서체","Gungsuh","GungSuh","GungsuhChe","Batang","바탕","Noto Serif KR","Apple SD Gothic Neo",serif;font-size:clamp(16px,2.2vw,22px);font-weight:400;color:#8fd3a8;letter-spacing:.06em;margin-bottom:-4px}
+  .eyebrow::before,.eyebrow::after{content:"";display:inline-block;width:26px;height:1px;background:currentColor;vertical-align:middle;margin:0 10px;opacity:.6}
+  .card h1{margin:0;font-size:clamp(30px,6vw,54px);font-weight:900;letter-spacing:-.03em;line-height:1.1}
+  .card h1 em{font-style:normal;color:var(--pink)}
+  .card p{margin:0;color:var(--muted);line-height:1.6;font-size:15px}
+  .seg{display:inline-flex;margin:0 auto;background:#1c1c22;border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+  .seg button{padding:9px 18px;border-radius:9px;background:transparent;color:var(--muted);font-weight:700}
+  .seg button.on{background:#2c2c36;color:var(--text)}
+  .big{padding:18px 28px;font-size:19px;border-radius:14px}
+  .err{display:none;max-height:40vh;overflow:auto;-webkit-user-select:text;user-select:text;padding:12px 14px;border-radius:10px;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.35);color:#ff8a8a;font-size:13px;line-height:1.6;white-space:pre-line;text-align:left}
+  .err.show{display:block}
+  .privacy{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
+  .privacy .ver{font-size:11px;opacity:.6}
+  .result{gap:14px}
+  .result h1{font-size:clamp(28px,5vw,44px)}
+  .rlist{display:flex;flex-direction:column;gap:8px;text-align:left}
+  .rl{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:#18181e;border:1px solid var(--line)}
+  .rl .rank{font-family:var(--num);font-weight:800;width:28px;color:var(--muted)}
+  .rl .name{font-weight:800;flex:1}
+  .rl .t{font-family:var(--num);font-size:13px;color:var(--muted)}
+  .rl.success .rank{color:var(--teal)}
+  .rl.eliminated{opacity:.55}
+  .rbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hof-mini{border:1px solid rgba(255,176,32,.35);border-radius:14px;padding:12px 16px 14px;background:rgba(255,176,32,.05);text-align:left;display:grid;gap:4px}
+  .hof-mini .hof-list li{font-size:15px}
+
+  /* 명예의 전당 화면 (게임 종료 후) */
+  .hof-screen{overflow:auto;background:radial-gradient(ellipse at 50% 40%,rgba(255,176,32,.17),transparent 60%),rgba(6,6,8,.97)}
+  .hof-screen .start-bg{opacity:.15}
+  .card.hof{gap:12px;width:min(660px,100%)}
+  .hof-h{margin:0;font-family:"궁서","궁서체","Gungsuh","GungSuh","GungsuhChe","Batang","바탕","Noto Serif KR","Noto Serif CJK KR",serif;font-weight:400;color:var(--gold);font-size:clamp(34px,6.5vw,66px);letter-spacing:.16em;line-height:1.2;text-shadow:0 0 28px rgba(255,176,32,.45)}
+  .hof-h::before,.hof-h::after{content:"";display:inline-block;width:clamp(22px,5vw,60px);height:2px;background:currentColor;vertical-align:middle;margin:0 .45em;opacity:.55}
+  .hof-meta{display:flex;justify-content:center;align-items:center;gap:12px;font-size:clamp(17px,2.5vw,26px);font-weight:800}
+  .hof-chip{font-size:.66em;padding:4px 12px;border-radius:999px;border:1px solid rgba(255,176,32,.42);color:#ffc75a;background:rgba(255,176,32,.1)}
+  .hof-time{font-family:var(--num);font-weight:800;font-size:clamp(84px,19vw,210px);line-height:1;letter-spacing:-.03em;color:#fff;text-shadow:0 0 42px rgba(255,176,32,.55),0 6px 24px rgba(0,0,0,.6);font-variant-numeric:tabular-nums}
+  .hof-time small{font-family:var(--font);font-size:.26em;color:#ffc75a;margin-left:8px;font-weight:800;letter-spacing:0}
+  .hof-rank{margin:0;font-size:clamp(17px,2.4vw,23px);font-weight:800;color:var(--teal)}
+  .hof-rank.new{color:var(--gold)}
+  .hof-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:8px}
+  .hof-form input{min-width:0;font-size:clamp(18px,2.6vw,24px);font-weight:700;padding:14px 16px;border-radius:12px;background:#15151b;border:2px solid rgba(255,176,32,.45);color:var(--text);text-align:center;-webkit-user-select:text;user-select:text}
+  .hof-form input::placeholder{color:#6f6f7a;font-weight:600}
+  .hof-form input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(255,176,32,.2)}
+  .hof-form .btn{width:auto;padding:14px 22px;white-space:nowrap}
+  .hof-skip{background:none;color:var(--muted);font-size:14px;font-weight:700;padding:6px;justify-self:center}
+  .btn.danger-armed{border-color:var(--pink);color:#ff6aa8}
+</style>
+</head>
+<body>
+
+<!-- ============ 시작 화면 ============ -->
+<div id="startup" class="screen">
+  <img id="startBg" class="start-bg" alt="">
+  <div class="card">
+    <div class="eyebrow">출사동이와 함께 하는</div>
+    <h1>무궁화 꽃이<br><em>피었습니다</em></h1>
+    <p>카메라가 참가자의 움직임을 읽고, 술래 캐릭터가 판정합니다.<br>태블릿이나 휴대폰을 술래 자리에 세워 두고 참가자 쪽을 비추세요.</p>
+    <div class="seg" id="facingSeg">
+      <button data-facing="user" class="on">전면 카메라</button>
+      <button data-facing="environment">후면 카메라</button>
+    </div>
+    <button id="bootBtn" class="btn primary big">카메라 허용하고 시작하기</button>
+    <div id="bootErr" class="err"></div>
+    <div class="privacy">영상은 이 기기 안에서만 처리되며 어디에도 전송·저장되지 않습니다.<br>권장 배치: 카메라 높이 약 1m, 참가자 간격 1m 이상<br>출발선은 술래(카메라)에서 5m · 통과는 술래까지 성인 3m, 어린이 2m 이내<br><span class="ver" id="appVer"></span></div>
+  </div>
+</div>
+
+<!-- ============ 결과 화면 ============ -->
+<div id="resultScreen" class="screen" hidden>
+  <div class="card result">
+    <h1 id="resultTitle">게임 종료</h1>
+    <p id="resultSub"></p>
+    <div id="resultList" class="rlist"></div>
+    <div id="resultHof" class="hof-mini" hidden></div>
+    <div class="rbtns">
+      <button id="againBtn" class="btn ghost">같은 참가자로 다시</button>
+      <button id="newBtn" class="btn primary">참가자 새로 등록</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 명예의 전당 (게임 종료 후 1등 기록) ============ -->
+<div id="hofScreen" class="screen hof-screen" hidden>
+  <img class="start-bg" id="hofBg" alt="">
+  <div class="card hof" role="dialog" aria-labelledby="hofHeading">
+    <h2 class="hof-h" id="hofHeading">명예의 전당</h2>
+    <div class="hof-meta"><span class="hof-chip" id="hofCat">어린이 부문</span><span id="hofWho">1번 선수</span></div>
+    <div class="hof-time" id="hofTime">0.00<small>초</small></div>
+    <p class="hof-rank" id="hofRank"></p>
+    <form class="hof-form" id="hofForm" autocomplete="off">
+      <input id="hofName" maxlength="12" placeholder="이름을 입력하세요" enterkeyhint="done" aria-label="이름">
+      <button class="btn primary" type="submit">이름 등록</button>
+    </form>
+    <button class="hof-skip" id="hofSkip" type="button">이름 없이 넘어가기</button>
+  </div>
+</div>
+
+<!-- ============ 본 화면 ============ -->
+<div id="app">
+  <main id="stage">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="vignette"></div>
+
+    <div class="hud-top" id="timerCard">
+      <div class="tlabel"><span class="rec"><i></i>LIVE</span><span>남은 시간</span></div>
+      <div class="timer"><span id="timeDisplay">60</span><small>초</small></div>
+      <div class="tbar"><i id="timeBar"></i></div>
+    </div>
+    <div id="phase" class="phase">대기 중</div>
+    <div id="hofCard" class="hof-card" aria-label="명예의 전당"></div>
+
+    <div id="younghee">
+      <div class="head">
+        <div class="face back"><img id="faceBackImg" alt="술래 뒷모습"></div>
+        <div class="face front"><img id="faceFrontImg" alt="술래 앞모습"><div class="scan"></div></div>
+      </div>
+    </div>
+
+    <div id="msg"></div>
+    <div class="finish"><span>결승선</span></div>
+    <div id="dboard" class="dboard" hidden></div>
+  </main>
+
+  <aside id="panel">
+    <div class="p-head">
+      <h2>진행 패널</h2>
+      <span class="status" id="engineStatus">준비 중</span>
+    </div>
+    <div class="p-body">
+      <div class="row">
+        <label class="f">판정 난이도
+          <select id="difficulty">
+            <option value="easy">쉬움</option>
+            <option value="normal" selected>보통</option>
+            <option value="strict">엄격</option>
+          </select>
+        </label>
+        <label class="f">제한 시간
+          <select id="timeLimit">
+            <option value="30">30초</option>
+            <option value="60" selected>60초</option>
+            <option value="90">90초</option>
+            <option value="120">120초</option>
+            <option value="180">180초</option>
+          </select>
+        </label>
+      </div>
+      <label class="f">새 참가자 구분
+        <select id="defaultType">
+          <option value="child">어린이 · 술래 앞 2m 안에 오면 통과</option>
+          <option value="adult">성인 · 술래 앞 3m 안에 오면 통과</option>
+        </select>
+      </label>
+      <p class="hint" id="finishHintMain" style="margin-top:-6px"></p>
+
+      <div class="ctrl-row">
+        <button id="startBtn" class="btn primary">게임 시작</button>
+        <button id="resetBtn" class="btn reset" disabled title="게임을 멈추고 처음 상태로 되돌립니다">↺ 리셋</button>
+      </div>
+      <div id="resetMenu" class="reset-menu" hidden role="dialog" aria-label="리셋">
+        <p id="rmTitle">게임을 멈추고 다시 시작할까요?</p>
+        <button id="rmSame" class="btn primary">같은 참가자로 다시</button>
+        <button id="rmNew" class="btn ghost">참가자 새로 등록</button>
+        <button id="rmCancel" class="rm-cancel">취소</button>
+      </div>
+
+      <details>
+        <summary>세부 설정</summary>
+        <div class="inner">
+          <label class="f">결승 판정 방식
+            <select id="finishMode">
+              <option value="approach" selected>술래 가까이 오면 통과 (권장)</option>
+              <option value="line">화면 아래 결승선 밟으면 통과</option>
+            </select>
+          </label>
+          <div id="approachOpts" class="subgroup">
+            <label class="f"><span class="lrow">출발선 거리 (술래 → 출발선) <b id="distVal">5.0m</b></span>
+              <input type="range" id="startDist" min="3" max="8" step="0.5" value="5">
+            </label>
+            <label class="f"><span class="lrow">성인 통과 거리 (술래까지) <b id="passAdultVal">3.0m</b></span>
+              <input type="range" id="passAdult" min="1" max="5" step="0.1" value="3">
+            </label>
+            <label class="f"><span class="lrow">어린이 통과 거리 (술래까지) <b id="passChildVal">2.0m</b></span>
+              <input type="range" id="passChild" min="1" max="5" step="0.1" value="2">
+            </label>
+            <p class="hint" id="finishHint"></p>
+          </div>
+          <div class="subgroup">
+            <span class="lrow" style="font-size:12px;color:var(--muted)">명예의 전당 기록 <b id="hofCount">0건</b></span>
+            <div class="row">
+              <button id="hofExport" class="btn ghost" type="button">기록 내보내기</button>
+              <button id="hofClear" class="btn ghost" type="button">기록 지우기</button>
+            </div>
+            <p class="hint">기록은 이 기기의 브라우저에 저장됩니다. 행사가 끝나면 내보내기(엑셀에서 열리는 CSV)로 보관하세요.</p>
+          </div>
+          <label class="f"><span class="lrow">허용 움직임 배율 <b id="sensVal">1.0×</b></span>
+            <input type="range" id="sens" min="0.5" max="2" step="0.1" value="1">
+          </label>
+          <p class="hint">숫자가 작을수록 조금만 움직여도 탈락합니다. 현장 조명·거리에 맞춰 조정하세요.</p>
+          <label class="f">카메라 선택
+            <select id="camSelect"><option value="">기본 카메라</option></select>
+          </label>
+          <div class="row">
+            <button id="flipBtn" class="btn ghost">전·후면 전환</button>
+            <button id="fsBtn" class="btn ghost">전체화면</button>
+          </div>
+          <label class="f">좌우 반전
+            <select id="mirrorMode">
+              <option value="auto" selected>자동 (전면만 반전)</option>
+              <option value="on">항상 반전</option>
+              <option value="off">반전 안 함</option>
+            </select>
+          </label>
+          <label class="f">인식 모델 <span class="hint">(변경 후 새로고침)</span>
+            <select id="modelSel">
+              <option value="lite" selected>가벼움 · 모바일 권장</option>
+              <option value="full">정밀 · PC 권장</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="voiceOn" checked>음성 안내 사용</label>
+          <div class="f" style="font-size:12px;color:var(--muted)">술래 얼굴 이미지 (탭해서 교체)</div>
+          <div class="facepick">
+            <label><img id="pickFront" alt="">앞모습<input type="file" id="fileFront" accept="image/*"></label>
+            <label><img id="pickBack" alt="">뒷모습<input type="file" id="fileBack" accept="image/*"></label>
+          </div>
+          <button id="faceResetBtn" class="btn ghost">기본 얼굴로 되돌리기</button>
+        </div>
+      </details>
+
+      <div class="players">
+        <h3><span>참가자</span><b id="playerCount">0 / 5</b></h3>
+        <div id="playerList" class="plist"></div>
+      </div>
+    </div>
+    <div class="p-foot" id="footHint">한 명씩 차례로 손을 1초간 들면 자동 등록됩니다.</div>
+  </aside>
+</div>
+
+<script>
+  // 게임 스크립트가 실행되지 못했을 때(아주 오래된 브라우저 등) 안내
+  window.__ready = false;
+  document.getElementById("bootBtn").onclick = function () {
+    if (window.__ready) return;
+    var err = document.getElementById("bootErr");
+    err.textContent = "게임을 불러오지 못했습니다. 최신 Chrome·Edge·Safari 브라우저로 열고 새로고침해 주세요.";
+    err.classList.add("show");
+  };
+</script>
+<script type="module">
+/* =========================================================
+   AI 엔진(MediaPipe) 위치
+   - 웹 주소(GitHub Pages 등)로 열면 같은 사이트 lib/ 폴더의 엔진을 먼저 사용 → 외부 CDN이 막혀도 동작
+   - 파일을 더블클릭해 열면(file://) 브라우저 보안상 lib/를 읽을 수 없어 공식 CDN 사용
+   - 인식 모델은 models/ 폴더에 파일이 있으면 그것을, 없으면 Google 공식 주소에서 받음
+   ========================================================= */
+const APP_VERSION = "2026.10.14";
+const MP_VERSION = "0.10.3";
+const SERVED = location.protocol === "http:" || location.protocol === "https:";
+const here = (p) => new URL(p, location.href).href;
+const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
+const ENGINE_SOURCES = [
+  ...(SERVED ? [{ name: "내장", bundle: here("lib/mediapipe/vision_bundle.js"), wasm: here("lib/mediapipe/wasm") }] : []),
+  { name: "CDN", bundle: `${MP_CDN}/vision_bundle.mjs`, wasm: `${MP_CDN}/wasm` },
+];
+const MODEL_FILE = { lite: "pose_landmarker_lite.task", full: "pose_landmarker_full.task" };
+const MODEL_CDN = {
+  lite: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+  full: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+};
+let PoseLandmarker = null, FilesetResolver = null; // 엔진을 불러온 뒤 채워짐
+
+/* =========================================================
+   설정
+   ========================================================= */
+const CONFIG = {
+  MAX_PLAYERS: 5,
+  COLORS: ["#3b82f6", "#ff107a", "#00c896", "#ffb020", "#a78bfa"],
+  REGISTER_HOLD_MS: 1000,
+  START_DIST: 5,             // 기본 출발선 거리 (술래·카메라 → 출발선, m)
+  PASS_DIST: { adult: 3, child: 2 }, // 기본 통과 거리: 술래(카메라)까지 남은 거리가 이 안이면 통과 (m)
+  FINISH_CONFIRM_FRAMES: 5,  // 통과 거리 안에 연속 5프레임(약 0.2초) 머물러야 통과 인정
+  LOST_MARGIN_M: 1.2,        // 통과 거리 1.2m 앞까지 왔다가 화면 옆으로 벗어나면 통과 인정
+  EDGE_X: 0.15,              // 화면 좌우 15% 안쪽에서 사라지면 '화면 옆으로 벗어남'으로 판단
+  FINISH_LINE_Y: 0.8,       // 라인 모드: 발목이 화면 80% 아래로 내려오면 통과
+  LOST_FINISH_MS: 1500,     // 가까이 오다 화면을 벗어난 경우 통과 인정 대기
+  MATCH_GATE: 1.3,
+  DIFFICULTY: {
+    easy:   { grace: 800, threshold: 0.50, frames: 8, rate: [1.0, 1.0], look: [1500, 2500] },
+    normal: { grace: 500, threshold: 0.30, frames: 5, rate: [0.9, 1.4], look: [1500, 3000] },
+    strict: { grace: 300, threshold: 0.18, frames: 3, rate: [0.8, 1.9], look: [2000, 4000] },
+  },
+};
+const BODY_CONNS = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[27,31],[28,32]];
+const JOINTS = [11,12,13,14,15,16,23,24,25,26,27,28];
+const MOVE_KP = [0,11,12,13,14,15,16,23,24,25,26,27,28];
+
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const vis = (p) => (p ? (p.visibility ?? 1) : 0);
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+// 출발→결승 구간 중 실제로 이동한 비율 (화면 속 크기는 거리에 반비례)
+const progressFromRatio = (r, R) => clamp((1 - 1 / r) / (1 - 1 / R), 0, 1);
+
+const Settings = {
+  data: { difficulty: "normal", time: 60, finish: "approach", startDist: CONFIG.START_DIST, passAdult: CONFIG.PASS_DIST.adult, passChild: CONFIG.PASS_DIST.child, defaultType: "child", mirror: "auto", model: "lite", sens: 1, voice: true, facing: "user" },
+  load() { try { Object.assign(this.data, JSON.parse(localStorage.getItem("mkh-settings") || "{}")); } catch {} },
+  save() { try { localStorage.setItem("mkh-settings", JSON.stringify(this.data)); } catch {} },
+};
+Settings.load();
+// 참가자 구분: 성인과 어린이는 통과 거리가 다름 (노트북 카메라 화각 때문에 키 큰 성인은 더 멀리서 통과)
+const TYPE_LABEL = { child: "어린이", adult: "성인" };
+const passDist = (p) => (p && p.type === "adult" ? Settings.data.passAdult : Settings.data.passChild);
+// 통과 기준 배율: 화면 속 크기는 거리에 반비례하므로 (출발선 거리 ÷ 통과 거리)배 커지면 통과
+const finishRatio = (p) => Settings.data.startDist / passDist(p);
+const fmtM = (v) => String(Math.round(v * 10) / 10);
+const fmtSec = (ms) => (ms / 1000).toFixed(2);
+const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* =========================================================
+   술래 얼굴 이미지 (기본: 문경 출사동이 / 세부 설정에서 교체 가능)
+   ========================================================= */
+const DEFAULT_FRONT = "assets/chulsa-front.webp";
+const DEFAULT_BACK = "assets/chulsa-back.webp";
+const BODY_IMG = "assets/chulsa-body.webp";
+const Face = {
+  key: "mkh-face",
+  load() {
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem(this.key) || "{}"); } catch {}
+    this.apply(saved.front || DEFAULT_FRONT, saved.back || DEFAULT_BACK);
+    $("startBg").src = BODY_IMG;
+  },
+  apply(front, back) {
+    $("faceFrontImg").src = front; $("faceBackImg").src = back;
+    $("pickFront").src = front; $("pickBack").src = back;
+  },
+  async set(which, file) {
+    if (!file) return;
+    const url = await this.shrink(file);
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem(this.key) || "{}"); } catch {}
+    saved[which] = url;
+    try { localStorage.setItem(this.key, JSON.stringify(saved)); } catch { UI.message("이미지가 너무 커서 저장하지 못했습니다", { ms: 2500, color: "#ffb020" }); }
+    this.load();
+  },
+  reset() { try { localStorage.removeItem(this.key); } catch {} this.load(); },
+  shrink(file) { // 768px 이내로 줄여 저장 (비율 유지)
+    return new Promise((res, rej) => {
+      const img = new Image(); const u = URL.createObjectURL(file);
+      img.onload = () => {
+        const S = 768, k = Math.min(1, S / Math.max(img.width, img.height));
+        const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(u); res(c.toDataURL("image/png"));
+      };
+      img.onerror = rej; img.src = u;
+    });
+  },
+};
+
+/* =========================================================
+   오프라인 대비: 엔진이 한 번 실행된 기기에는 엔진·모델을 저장해 두어 인터넷 없이도 실행 (sw.js)
+   ========================================================= */
+const Offline = {
+  warm() {
+    if (!SERVED || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready.then((reg) => {
+      const urls = performance.getEntriesByType("resource").map((e) => e.name)
+        .filter((u) => /\/lib\/mediapipe\/|\/models\/|mediapipe-models\/|@mediapipe\/tasks-vision@/.test(u));
+      reg.active?.postMessage({ type: "warm", urls });
+    }).catch(() => {});
+  },
+};
+
+/* =========================================================
+   음성 · 효과음
+   ========================================================= */
+const Voice = {
+  ok: "speechSynthesis" in window, voice: null, unlocked: false,
+  init() {
+    if (!this.ok) return;
+    const pick = () => {
+      const ko = speechSynthesis.getVoices().filter((v) => /ko/i.test(v.lang));
+      this.voice = ko.find((v) => /Google|Yuna|Heami|Sora|Sun-Hi|InJoon/i.test(v.name)) || ko[0] || null;
+      this.localVoice = ko.find((v) => v.localService) || null; // 인터넷 없이도 나오는 기기 내장 음성
+    };
+    pick(); speechSynthesis.onvoiceschanged = pick;
+  },
+  unlock() { // iOS: 사용자 터치 직후 한 번 재생해야 이후 자동 재생 허용
+    if (!this.ok || this.unlocked) return;
+    try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); this.unlocked = true; } catch {}
+  },
+  say(text, rate = 1, fallbackMs = 2500) {
+    return new Promise((res) => {
+      if (!this.ok || !Settings.data.voice) { setTimeout(res, fallbackMs); return; }
+      let done = false; const fin = () => { if (!done) { done = true; res(); } };
+      const speak = (voice, canRetry) => {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "ko-KR"; if (voice) u.voice = voice;
+        u.rate = rate; u.pitch = 1.05; u.volume = 1;
+        u.onend = fin;
+        u.onerror = (e) => {
+          // 인터넷 음성(Google 등)이 실패하면 기기 내장 음성으로 다시 말하고, 이후에도 내장 음성 사용
+          const stopped = e?.error === "interrupted" || e?.error === "canceled";
+          if (canRetry && !stopped && this.localVoice && voice && !voice.localService) { this.useLocal = true; speak(this.localVoice, false); }
+          else fin();
+        };
+        speechSynthesis.speak(u);
+      };
+      const offline = navigator.onLine === false || this.useLocal;
+      speak(offline && this.localVoice ? this.localVoice : this.voice, true);
+      setTimeout(fin, fallbackMs * 1.8 + 1500); // 음성 엔진이 멈춰도 게임은 진행
+    });
+  },
+  cancel() { if (this.ok) speechSynthesis.cancel(); },
+};
+const Sfx = {
+  ctx: null,
+  init() { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} },
+  unlock() { this.ctx?.resume?.(); },
+  tone(f = 880, d = 0.12, type = "sine", g = 0.25) {
+    if (!this.ctx) return;
+    const o = this.ctx.createOscillator(), gn = this.ctx.createGain(), t = this.ctx.currentTime;
+    o.type = type; o.frequency.value = f;
+    gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(gn).connect(this.ctx.destination); o.start(t); o.stop(t + d);
+  },
+  turn() { this.tone(1200, 0.18, "square", 0.18); },
+  out() { this.tone(180, 0.5, "sawtooth", 0.3); },
+  pass() { this.tone(660, 0.1); setTimeout(() => this.tone(990, 0.2), 110); },
+  tick() { this.tone(700, 0.08, "triangle", 0.15); },
+  fanfare() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => this.tone(f, i === 3 ? 0.45 : 0.16, "triangle", 0.22), i * 130)); },
+};
+
+/* =========================================================
+   카메라
+   ========================================================= */
+const video = $("webcam");
+const Camera = {
+  stream: null, deviceId: null, mirror: true,
+  log: [],
+  note(m) { this.log.push(m); console.log("[camera]", m); },
+  // 구형 TV 브라우저용 폴리필: navigator.mediaDevices가 없으면 webkitGetUserMedia로 대체
+  gum(constraints) {
+    if (navigator.mediaDevices?.getUserMedia) return navigator.mediaDevices.getUserMedia(constraints);
+    const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+    if (!legacy) return Promise.reject(new Error("NO_GUM"));
+    return new Promise((res, rej) => legacy.call(navigator, constraints, res, rej));
+  },
+  withTimeout(promise, ms, label) {
+    return new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error(`TIMEOUT:${label}`)), ms);
+      promise.then((v) => { clearTimeout(t); res(v); }, (e) => { clearTimeout(t); rej(e); });
+    });
+  },
+  async start() {
+    this.stop(); this.log = [];
+    const facing = Settings.data.facing;
+    const hd = { width: { ideal: 1280 }, height: { ideal: 720 } };
+    // 여러 방식을 순서대로 시도한다. 스마트 TV·USB 캠은 facingMode 등 세부 조건을 거부하는 경우가 많아
+    // 가장 단순한 요청부터 시작하고, 사용자가 카메라를 직접 고른 경우에만 그 장치를 먼저 시도한다.
+    const attempts = [];
+    if (this.deviceId) attempts.push({ label: "선택한 카메라", c: { video: { deviceId: { exact: this.deviceId }, ...hd }, audio: false } });
+    attempts.push({ label: "기본 카메라", c: { video: true, audio: false } });
+    attempts.push({ label: `${facing === "user" ? "전면" : "후면"} 카메라`, c: { video: { facingMode: facing, ...hd }, audio: false } });
+    attempts.push({ label: "HD 카메라", c: { video: hd, audio: false } });
+    let lastErr = null;
+    for (const a of attempts) {
+      try {
+        this.note(`시도: ${a.label}`);
+        this.stream = await this.withTimeout(this.gum(a.c), 20000, a.label);
+        this.note(`성공: ${a.label}`);
+        break;
+      } catch (e) { lastErr = e; this.note(`실패: ${a.label} → ${e?.name || ""} ${e?.message || e}`); this.stream = null; if (e?.name === "NotAllowedError") break; }
+    }
+    // 마지막 수단: 연결된 카메라 장치를 하나씩 직접 지정해 본다
+    if (!this.stream && navigator.mediaDevices?.enumerateDevices && lastErr?.name !== "NotAllowedError") {
+      try {
+        const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+        this.note(`카메라 장치 ${devs.length}개 감지`);
+        for (const d of devs) {
+          try { this.stream = await this.withTimeout(this.gum({ video: { deviceId: { exact: d.deviceId } }, audio: false }), 15000, d.label || "장치"); this.deviceId = d.deviceId; this.note(`성공: ${d.label || "장치"}`); break; }
+          catch (e) { lastErr = e; this.note(`실패: ${d.label || "장치"} → ${e?.name || ""} ${e?.message || e}`); }
+        }
+      } catch (e) { this.note(`장치 목록 조회 실패: ${e?.message || e}`); }
+    }
+    if (!this.stream) throw lastErr || new Error("카메라 스트림을 열지 못했습니다.");
+    // 화질은 스트림을 연 뒤에 요청 (거부되어도 무시)
+    try { await this.stream.getVideoTracks()[0].applyConstraints?.({ width: { ideal: 1280 }, height: { ideal: 720 } }); } catch {}
+    if ("srcObject" in video) video.srcObject = this.stream; else video.src = URL.createObjectURL(this.stream);
+    await this.withTimeout(new Promise((r) => { if (video.readyState >= 1) r(); else video.onloadedmetadata = r; }), 15000, "영상 준비");
+    try { await video.play(); } catch (e) { this.note(`play() 오류: ${e?.message || e}`); }
+    this.note(`영상 크기 ${video.videoWidth}x${video.videoHeight}`);
+    this.applyMirror();
+    this.listDevices();
+  },
+  stop() { this.stream?.getTracks().forEach((t) => t.stop()); this.stream = null; },
+  isFront() {
+    const track = this.stream?.getVideoTracks()[0]; if (!track) return true;
+    const s = track.getSettings?.() || {};
+    if (s.facingMode) return s.facingMode === "user";
+    return !/back|rear|environment|후면/i.test(track.label || "");
+  },
+  applyMirror() {
+    const m = Settings.data.mirror;
+    this.mirror = m === "auto" ? this.isFront() : m === "on";
+    video.classList.toggle("mirror", this.mirror);
+  },
+  async listDevices() {
+    try {
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+      const sel = $("camSelect"); const cur = this.stream?.getVideoTracks()[0]?.getSettings?.().deviceId;
+      sel.innerHTML = "";
+      devs.forEach((d, i) => { const o = document.createElement("option"); o.value = d.deviceId; o.textContent = d.label || `카메라 ${i + 1}`; if (d.deviceId === cur) o.selected = true; sel.appendChild(o); });
+    } catch {}
+  },
+};
+
+/* =========================================================
+   포즈 인식 엔진 (GPU 실패 시 CPU로 자동 전환)
+   ========================================================= */
+const Detector = {
+  landmarker: null, vision: null, delegate: "GPU", failures: 0, source: "", modelPath: "", errors: [],
+  async init(report) {
+    let lastErr = null; this.errors = [];
+    for (const src of ENGINE_SOURCES) {
+      try {
+        report("AI 엔진 불러오는 중…");
+        ({ PoseLandmarker, FilesetResolver } = await import(src.bundle));
+        this.vision = await FilesetResolver.forVisionTasks(src.wasm);
+        report("인식 모델 준비 중…");
+        this.modelPath = await this.pickModel();
+        try { this.landmarker = await this.create("GPU"); this.delegate = "GPU"; }
+        catch (e) { console.warn("[engine] GPU 사용 불가 → CPU", e); this.landmarker = await this.create("CPU"); this.delegate = "CPU"; }
+        this.source = src.name;
+        return;
+      } catch (e) {
+        lastErr = e; console.warn(`[engine] ${src.name} 엔진 실패`, e);
+        this.errors.push(`${src.name} 엔진 실패: ${String(e?.message || e).slice(0, 140)}`);
+      }
+    }
+    throw lastErr || new Error("AI 엔진을 불러오지 못했습니다.");
+  },
+  // 인식 모델: models/ 폴더에 직접 올린 파일 → 없으면 Google 공식 주소
+  async pickModel() {
+    const key = MODEL_FILE[Settings.data.model] ? Settings.data.model : "lite";
+    if (SERVED) {
+      const local = here(`models/${MODEL_FILE[key]}`);
+      try { if (await window.caches?.match(local)) return local; } catch {}
+      try {
+        const r = await fetch(local, { method: "HEAD", cache: "no-store" });
+        if (r.ok && !/text\/html/i.test(r.headers.get("content-type") || "")) return local;
+      } catch {}
+    }
+    return MODEL_CDN[key];
+  },
+  create(delegate) {
+    return PoseLandmarker.createFromOptions(this.vision, {
+      baseOptions: { modelAssetPath: this.modelPath, delegate },
+      runningMode: "VIDEO", numPoses: CONFIG.MAX_PLAYERS,
+      minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+    });
+  },
+  async fallbackToCPU() {
+    if (this.delegate === "CPU") return;
+    try { this.landmarker?.close?.(); } catch {}
+    this.landmarker = await this.create("CPU"); this.delegate = "CPU";
+    UI.engine(`CPU 모드`);
+  },
+};
+
+/* =========================================================
+   색상 (조끼 식별)
+   ========================================================= */
+const sampleCv = document.createElement("canvas");
+const sctx = sampleCv.getContext("2d", { willReadFrequently: true });
+const SW = 160; let SH = 90;
+function sampleFrame() {
+  if (!video.videoWidth) return null;
+  SH = Math.max(1, Math.round(SW * video.videoHeight / video.videoWidth));
+  if (sampleCv.width !== SW || sampleCv.height !== SH) { sampleCv.width = SW; sampleCv.height = SH; }
+  sctx.drawImage(video, 0, 0, SW, SH);
+  try { return sctx.getImageData(0, 0, SW, SH); } catch { return null; }
+}
+function rgb2hsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min; let h = 0;
+  if (d > 0) { if (max === r) h = ((g - b) / d) % 6; else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+  return { h, s: max ? d / max : 0, v: max };
+}
+function sampleVest(lm, img) {
+  const pts = [lm[11], lm[12], lm[23], lm[24]];
+  if (!img || pts.some((p) => !p || vis(p) < 0.4)) return null;
+  let x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x));
+  let y0 = Math.min(...pts.map((p) => p.y)), y1 = Math.max(...pts.map((p) => p.y));
+  const w = x1 - x0, h = y1 - y0; x0 += w * 0.22; x1 -= w * 0.22; y0 += h * 0.15; y1 -= h * 0.2;
+  const sx0 = clamp(Math.floor(x0 * SW), 0, SW - 1), sx1 = clamp(Math.ceil(x1 * SW), 0, SW - 1);
+  const sy0 = clamp(Math.floor(y0 * SH), 0, SH - 1), sy1 = clamp(Math.ceil(y1 * SH), 0, SH - 1);
+  let r = 0, g = 0, b = 0, n = 0; const d = img.data;
+  for (let y = sy0; y <= sy1; y++) for (let x = sx0; x <= sx1; x++) { const i = (y * SW + x) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+  if (n < 4) return null;
+  r /= n; g /= n; b /= n;
+  return { r, g, b, ...rgb2hsv(r, g, b) };
+}
+const hueDiff = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+function colorDist(a, b) {
+  if (!a || !b) return 0.5;
+  const sw = Math.min(a.s, b.s);
+  return (hueDiff(a.h, b.h) / 180) * sw * 1.6 + Math.abs(a.s - b.s) * 0.7 + Math.abs(a.v - b.v) * 0.5;
+}
+function blendSig(a, b, k) {
+  if (!a) return b; if (!b) return a;
+  const r = a.r + (b.r - a.r) * k, g = a.g + (b.g - a.g) * k, bl = a.b + (b.b - a.b) * k;
+  return { r, g, b: bl, ...rgb2hsv(r, g, bl) };
+}
+const sigCss = (s) => (s ? `rgb(${s.r | 0},${s.g | 0},${s.b | 0})` : "#333");
+
+/* =========================================================
+   추적기: 위치 + 조끼 색으로 프레임마다 참가자 매칭
+   ========================================================= */
+const Tracker = {
+  match(dets, players, now) {
+    const pairs = [];
+    dets.forEach((det, i) => {
+      for (const p of players) {
+        const pd = Math.hypot(det.cx - p.x, det.cy - p.y);
+        const gate = now - p.lastSeen > 4000 ? 0.7 : 0.4; // 오래 놓친 사람은 넓게 허용
+        if (pd > gate) continue;
+        const cd = p.sig && det.sig ? colorDist(p.sig, det.sig) : 0.3;
+        const cost = pd / 0.25 + cd * 1.2;
+        if (cost < CONFIG.MATCH_GATE || (now - p.lastSeen > 4000 && cost < 2.2)) pairs.push({ i, p, cost });
+      }
+    });
+    pairs.sort((a, b) => a.cost - b.cost);
+    const usedD = new Set(), usedP = new Set();
+    for (const { i, p, cost } of pairs) {
+      if (usedD.has(i) || usedP.has(p.id)) continue;
+      usedD.add(i); usedP.add(p.id);
+      const det = dets[i]; det.player = p;
+      p.x = det.cx; p.y = det.cy; p.shoulder = det.shoulder; p.lastSeen = now;
+      if (det.sig && cost < 0.8) p.sig = blendSig(p.sig, det.sig, 0.05); // 조명 변화 서서히 반영
+    }
+  },
+};
+
+/* =========================================================
+   움직임 계산 (어깨너비로 정규화, 상위 3개 관절 평균)
+   ========================================================= */
+function movement(base, cur) {
+  const ds = [];
+  for (const i of MOVE_KP) { const a = base[i], b = cur[i]; if (!a || !b || vis(a) < 0.5 || vis(b) < 0.5) continue; ds.push(Math.hypot(a.x - b.x, a.y - b.y)); }
+  if (!ds.length) return 0;
+  ds.sort((a, b) => b - a);
+  const top = ds.slice(0, 3); const avg = top.reduce((s, v) => s + v, 0) / top.length;
+  const sh = Math.max(0.02, Math.hypot(base[11].x - base[12].x, base[11].y - base[12].y));
+  return avg / sh;
+}
+
+function ankleY(lm) { // 화면에서 더 아래쪽에 있는 발목의 y
+  const ys = [27, 28].filter((i) => vis(lm[i]) > 0.5).map((i) => lm[i].y);
+  return ys.length ? Math.max(...ys) : null;
+}
+
+/* =========================================================
+   UI
+   ========================================================= */
+const stage = $("stage"), younghee = $("younghee"), msgEl = $("msg"), phaseEl = $("phase");
+const UI = {
+  msgTimer: null,
+  message(text, { ms = 2000, big = false, color = "" } = {}) {
+    msgEl.textContent = text; msgEl.style.color = color || ""; msgEl.classList.toggle("big", big); msgEl.classList.add("show");
+    clearTimeout(this.msgTimer);
+    if (ms > 0) this.msgTimer = setTimeout(() => msgEl.classList.remove("show"), ms);
+  },
+  hideMessage() { clearTimeout(this.msgTimer); msgEl.classList.remove("show"); },
+  phase(text, cls = "") { phaseEl.textContent = text; phaseEl.className = "phase " + cls; },
+  engine(text) { $("engineStatus").textContent = text; },
+  timer(t) {
+    $("timeDisplay").textContent = String(Math.max(0, t)).padStart(2, "0");
+    $("timerCard").classList.toggle("low", t <= 10);
+    $("timeBar").style.width = `${clamp(t / (Settings.data.time || 60), 0, 1) * 100}%`;
+  },
+  foot(text) { $("footHint").textContent = text; },
+  controls() { // 리셋 버튼: 게임 중이거나 등록된 참가자가 있을 때 사용 가능
+    const active = Game.state === "countdown" || Game.state === "playing";
+    const btn = $("resetBtn");
+    btn.disabled = !(active || (Game.state === "registration" && Game.players.length > 0));
+    btn.classList.toggle("active", active);
+    if (btn.disabled) ResetMenu.close();
+  },
+  lockSettings(on) { // 게임 중에는 판정에 영향을 주는 설정을 잠금
+    ["difficulty", "timeLimit", "finishMode", "startDist", "passAdult", "passChild"].forEach((id) => { $(id).disabled = on; });
+  },
+  renderPlayers(players, now) {
+    const list = $("playerList");
+    $("playerCount").textContent = `${players.length} / ${CONFIG.MAX_PLAYERS}`;
+    let html;
+    if (!players.length) html = `<div class="empty">아직 등록된 참가자가 없습니다.<br>1번 참가자부터 카메라를 보고 손을 들어 주세요.</div>`;
+    else html = this.playerRows(players, now);
+    if (html !== this.lastPlayersHtml) { this.lastPlayersHtml = html; list.innerHTML = html; } // 바뀐 것이 있을 때만 다시 그림 (버튼 누름 보존)
+  },
+  playerRows(players, now) {
+    const ST = { ready: "대기", alive: "진행 중", eliminated: "탈락", success: "통과" };
+    const locked = Game.state === "countdown" || Game.state === "playing";
+    return players.map((p) => {
+      const away = now - p.lastSeen > 1200 && (p.status === "alive" || p.status === "ready");
+      const unseen = now - p.lastSeen > 1200 && p.status !== "success";
+      const ratio = p.status === "alive" && Game.phase === "looking" && p.moveRatio != null ? clamp(p.moveRatio, 0, 1.2) : 0;
+      const cls = ratio >= 1 ? "over" : ratio > 0.6 ? "warn" : "";
+      const sub = p.status === "success" ? `${fmtSec(p.finishTime)}초 만에 통과`
+        : p.status === "alive" ? `<span>움직임</span><span class="meter"><i class="${cls}" style="width:${ratio / 1.2 * 100}%"></i></span>`
+        : p.status === "eliminated" ? "술래에게 들킴" : "등록 완료";
+      return `<div class="pl ${p.status} ${unseen ? "unseen" : ""}">
+        <div class="bar" style="background:${p.color}"></div>
+        <div class="vest" style="background:${sigCss(p.sig)}" title="조끼 색"></div>
+        <div class="info"><div class="name">${p.id}번 선수<button type="button" class="type ${p.type}" data-type-toggle="${p.id}" ${locked ? "disabled" : ""} title="눌러서 어린이·성인 바꾸기">${TYPE_LABEL[p.type]}</button></div><div class="sub">${sub}</div></div>
+        <span class="st ${away ? "unseen" : p.status}">${away ? "화면 밖" : ST[p.status]}</span></div>`;
+    }).join("");
+  },
+};
+
+/* =========================================================
+   남은 거리 보드 (화면 하단 · 멀리서도 보이게 크게)
+   ========================================================= */
+function resetProgress(p) {
+  p.finishFrames = 0; p.ratio = null; p.ratioS = null; p.prog = null; p.dist = null;
+  p.baseAnkle = null; p.ankleSamples = [];
+}
+// 표시값: 접근 방식은 술래(카메라)까지 남은 거리 m (출발선 거리 설정 기준 추정), 라인 방식은 남은 비율(%)
+function remainParts(p) {
+  if (Settings.data.finish === "line") return p.prog == null ? null : { num: String(Math.round((1 - p.prog) * 100)), unit: "%" };
+  if (p.dist == null) return null;
+  // 통과 거리 안에 실제로 들어오기 전에는 통과 거리 이하 숫자가 보이지 않도록 (예: 성인은 통과 전까지 최소 3.1m로 표시)
+  const pd = passDist(p);
+  const v = p.finishFrames > 0 ? Math.floor(Math.min(p.dist, pd) * 10 + 1e-6) / 10 : Math.max(Math.round(p.dist * 10) / 10, pd + 0.1);
+  return { num: v >= 10 ? v.toFixed(0) : v.toFixed(1), unit: "m" };
+}
+const Board = {
+  el: $("dboard"), cards: new Map(),
+  build(players) {
+    this.el.innerHTML = ""; this.cards.clear();
+    for (const p of players) {
+      const c = document.createElement("div");
+      c.className = "dcard"; c.style.setProperty("--pc", p.color);
+      c.innerHTML = `<div class="dc-top"><span class="dc-id">${p.id}번<em>${TYPE_LABEL[p.type]}</em></span><span class="dc-st"></span></div><div class="dc-val"></div><div class="dc-bar"><i></i></div>`;
+      this.el.appendChild(c);
+      this.cards.set(p.id, { c, st: c.querySelector(".dc-st"), val: c.querySelector(".dc-val"), bar: c.querySelector(".dc-bar i"), key: "" });
+    }
+  },
+  show(on) { this.el.hidden = !on; },
+  update(players, now) {
+    if (this.el.hidden) return;
+    for (const p of players) {
+      const k = this.cards.get(p.id); if (!k) continue;
+      const unseen = now - p.lastSeen > 1200;
+      let cls = p.status, st = "", val = "", prog = p.prog ?? 0;
+      if (p.status === "success") { val = "통과"; st = `${fmtSec(p.finishTime)}초`; prog = 1; }
+      else if (p.status === "eliminated") { val = "탈락"; }
+      else if (Game.state === "countdown") { cls += " wait"; val = "준비"; st = unseen ? "화면 밖" : "출발선"; prog = 0; }
+      else {
+        const r = remainParts(p);
+        if (unseen) { cls += " unseen"; val = "—"; st = "화면 밖"; }
+        else if (!r) { cls += " wait"; val = "—"; st = "측정 중"; }
+        else {
+          val = `${r.num}<small>${r.unit}</small>`;
+          if (p.finishFrames > 0) { st = "통과 확인 중"; cls += " confirm"; }
+          else st = Settings.data.finish === "line" ? "남은 거리" : `${fmtM(passDist(p))}m 이내 통과`;
+        }
+      }
+      const key = `${cls}|${val}|${st}`;
+      if (k.key !== key) { k.key = key; k.c.className = `dcard ${cls}`; k.val.innerHTML = val; k.st.textContent = st; }
+      k.bar.style.width = `${clamp(prog, 0, 1) * 100}%`;
+    }
+  },
+};
+
+/* =========================================================
+   명예의 전당: 매회 1등(부문별) 기록을 이 기기 브라우저에 저장하고 1~3위 표시
+   ========================================================= */
+const HallOfFame = {
+  key: "mkh-hof", list: [],
+  load() {
+    try { const a = JSON.parse(localStorage.getItem(this.key) || "[]"); this.list = Array.isArray(a) ? a.filter((r) => r && typeof r.ms === "number" && TYPE_LABEL[r.type]) : []; }
+    catch { this.list = []; }
+  },
+  save() {
+    try { localStorage.setItem(this.key, JSON.stringify(this.list.slice(-3000))); return true; }
+    catch { UI.message("기록을 저장하지 못했습니다 (브라우저 저장 공간)", { ms: 2500, color: "#ffb020" }); return false; }
+  },
+  add(rec) { this.list.push(rec); this.save(); return rec; },
+  rename(id, name) { const r = this.list.find((x) => x.id === id); if (r) { r.name = name; this.save(); } },
+  sorted(type) { return this.list.filter((r) => r.type === type).sort((a, b) => a.ms - b.ms || String(a.at).localeCompare(String(b.at))); },
+  top(type, n = 3) { return this.sorted(type).slice(0, n); },
+  rankOf(rec) { return this.sorted(rec.type).findIndex((r) => r.id === rec.id) + 1; },
+  name(r) { return r.name || "익명"; },
+  listHtml(type, highlightId) {
+    const top = this.top(type);
+    if (!top.length) return `<ol class="hof-list"><li class="none">아직 기록이 없어요</li></ol>`;
+    return `<ol class="hof-list">${top.map((r, i) => `<li class="r${i + 1}${r.id === highlightId ? " me" : ""}"><b>${i + 1}</b><span class="nm">${esc(this.name(r))}</span><span class="tm">${fmtSec(r.ms)}<small>초</small></span></li>`).join("")}</ol>`;
+  },
+  // 게임 화면 카드: 등록된 참가자의 부문(없으면 '새 참가자 구분')만 표시
+  //  - 대기·등록 중: 부문별 1~3위 / 게임 중: 참가자 표시를 가리지 않도록 부문별 1위만 작게
+  render() {
+    const types = Game.players.length ? [...new Set(Game.players.map((p) => p.type))] : [Settings.data.defaultType];
+    types.sort((a, b) => (a === "child" ? -1 : 1) - (b === "child" ? -1 : 1));
+    const card = $("hofCard"), playing = Game.state === "countdown" || Game.state === "playing";
+    card.classList.toggle("compact", playing);
+    if (playing) {
+      const rows = types.map((t) => { const r = this.top(t, 1)[0]; return r ? `<li class="r1"><b>1</b><span class="cat">${TYPE_LABEL[t]}</span><span class="nm">${esc(this.name(r))}</span><span class="tm">${fmtSec(r.ms)}<small>초</small></span></li>` : ""; }).join("");
+      card.hidden = !rows;
+      card.innerHTML = `<div class="hof-title">명예의 전당 1위</div><ol class="hof-list">${rows}</ol>`;
+    } else {
+      card.hidden = false;
+      card.innerHTML = `<div class="hof-title">명예의 전당</div>` + types.map((t) => `<div class="hof-cat">${TYPE_LABEL[t]}</div>${this.listHtml(t)}`).join("");
+    }
+    $("hofCount").textContent = `${this.list.length}건`;
+  },
+  csv() {
+    const rows = [["부문", "순위", "이름", "기록(초)", "날짜", "시각", "선수 번호", "난이도", "출발선(m)", "통과 거리(m)"]];
+    const DIFF = { easy: "쉬움", normal: "보통", strict: "엄격" };
+    for (const t of ["child", "adult"]) {
+      this.sorted(t).forEach((r, i) => {
+        const d = new Date(r.at), pad = (n) => String(n).padStart(2, "0");
+        rows.push([TYPE_LABEL[t], i + 1, this.name(r), fmtSec(r.ms), `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+          `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`, r.playerNo ?? "", DIFF[r.diff] || "", r.startDist ?? "", r.passDist ?? ""]);
+      });
+    }
+    return "\uFEFF" + rows.map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  },
+  exportFile() {
+    if (!this.list.length) { UI.message("내보낼 기록이 없습니다", { ms: 1800, color: "#ffb020" }); return; }
+    const d = new Date(), pad = (n) => String(n).padStart(2, "0");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([this.csv()], { type: "text/csv;charset=utf-8" }));
+    a.download = `명예의전당_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  },
+  clearArmed: null,
+  clearClick() { // 실수 방지: 한 번 더 눌러야 지워짐
+    const btn = $("hofClear");
+    if (!this.clearArmed) {
+      btn.textContent = "한 번 더 누르면 모두 지워져요"; btn.classList.add("danger-armed");
+      this.clearArmed = setTimeout(() => { this.clearArmed = null; btn.textContent = "기록 지우기"; btn.classList.remove("danger-armed"); }, 4000);
+      return;
+    }
+    clearTimeout(this.clearArmed); this.clearArmed = null;
+    btn.textContent = "기록 지우기"; btn.classList.remove("danger-armed");
+    this.list = []; this.save(); this.render();
+    UI.message("명예의 전당 기록을 모두 지웠습니다", { ms: 2200, color: "#ffb020" });
+  },
+};
+
+// 게임 종료 후: 부문별 1등의 기록을 크게 보여 주고 이름 입력
+const HofScreen = {
+  resolve: null, rec: null,
+  ask({ p, rec }) {
+    return new Promise((res) => {
+      this.resolve = res; this.rec = rec;
+      const rank = HallOfFame.rankOf(rec), total = HallOfFame.sorted(rec.type).length;
+      $("hofCat").textContent = `${TYPE_LABEL[rec.type]} 부문`;
+      $("hofWho").textContent = `${p.id}번 선수`; $("hofWho").style.color = p.color;
+      $("hofTime").innerHTML = `${fmtSec(rec.ms)}<small>초</small>`;
+      const r = $("hofRank");
+      r.className = "hof-rank" + (rank === 1 ? " new" : "");
+      r.textContent = rank === 1 ? (total === 1 ? "첫 번째 기록 · 역대 1위!" : "역대 1위 · 새 기록!")
+        : rank <= 3 ? `역대 ${rank}위 · 명예의 전당 TOP 3` : `이번 판 1등 · 역대 ${rank}위`;
+      $("hofName").value = "";
+      $("hofBg").src = BODY_IMG;
+      $("hofScreen").hidden = false;
+      setTimeout(() => $("hofName").focus(), 80);
+      Sfx.fanfare();
+      Voice.say(`명예의 전당! ${p.id}번 선수, ${(rec.ms / 1000).toFixed(1)}초. 이름을 입력해 주세요`, 1.05, 3500);
+    });
+  },
+  finish(save) {
+    if (!this.resolve) return;
+    const name = save ? $("hofName").value.trim().replace(/\s+/g, " ").slice(0, 12) : "";
+    if (name) {
+      HallOfFame.rename(this.rec.id, name);
+      const rank = HallOfFame.rankOf(this.rec);
+      Sfx.pass();
+      Voice.say(rank <= 3 ? `${name}, 명예의 전당 ${rank}위` : `${name}, 기록을 저장했습니다`, 1.05, 2000);
+    }
+    HallOfFame.render();
+    $("hofScreen").hidden = true;
+    const res = this.resolve; this.resolve = null; res();
+  },
+  close() { if (this.resolve) this.finish(false); $("hofScreen").hidden = true; },
+};
+
+/* =========================================================
+   리셋 메뉴 (잘못 눌러도 바로 리셋되지 않도록 한 번 더 선택)
+   ========================================================= */
+const ResetMenu = {
+  timer: null,
+  open() {
+    const active = Game.state === "countdown" || Game.state === "playing";
+    $("rmTitle").textContent = active ? "게임을 멈추고 다시 시작할까요?" : "등록한 참가자를 모두 지울까요?";
+    $("rmSame").hidden = !active;
+    $("resetMenu").hidden = false;
+    clearTimeout(this.timer); this.timer = setTimeout(() => this.close(), 8000);
+  },
+  close() { clearTimeout(this.timer); $("resetMenu").hidden = true; },
+  toggle() { if ($("resetMenu").hidden) this.open(); else this.close(); },
+};
+
+/* =========================================================
+   게임 본체
+   ========================================================= */
+const Game = {
+  state: "boot", phase: "", players: [], timeLeft: 60, timerId: null, token: 0,
+  graceUntil: 0, startedAt: 0, candidate: null, lastRender: 0, lastBoard: 0, lookEliminated: 0,
+  diff() { return CONFIG.DIFFICULTY[Settings.data.difficulty]; },
+  threshold() { return this.diff().threshold * Settings.data.sens; },
+
+  /* ----- 등록 ----- */
+  async enterRegistration(keepPlayers = false, quiet = false) {
+    this.state = "registration"; this.phase = ""; this.token++; this.candidate = null;
+    clearInterval(this.timerId); HofScreen.close(); $("resultScreen").hidden = true; ResetMenu.close();
+    Voice.cancel(); younghee.classList.remove("looking"); stage.className = ""; Board.show(false);
+    stage.classList.toggle("line-mode", Settings.data.finish === "line");
+    if (!keepPlayers) this.players = [];
+    this.players.forEach((p) => { p.status = "ready"; p.basePose = null; p.baseShoulder = null; p.finishTime = null; p.moveRatio = null; p.overCount = 0; resetProgress(p); });
+    this.timeLeft = Settings.data.time; UI.timer(this.timeLeft);
+    $("startBtn").disabled = false; $("startBtn").textContent = "게임 시작";
+    UI.lockSettings(false);
+    UI.phase("참가자 등록", "");
+    UI.renderPlayers(this.players, performance.now());
+    UI.controls(); HallOfFame.render();
+    if (quiet) return;
+    if (this.players.length < CONFIG.MAX_PLAYERS) this.promptNext();
+    else { UI.message("등록 완료. 게임 시작을 누르세요", { ms: 2500 }); UI.foot("게임 시작 버튼을 누르면 3초 뒤 시작합니다."); }
+  },
+  promptNext() {
+    const n = this.players.length + 1;
+    UI.message(`${n}번 참가자, 손을 들어 주세요`, { ms: 3500, color: "#7db3ff" });
+    UI.foot(`${n}번 참가자가 손을 1초간 들면 등록됩니다. 다 모이면 게임 시작을 누르세요.`);
+    Voice.say(`${n}번 참가자, 손을 들어 주세요`, 1.05, 2200);
+  },
+  handleRegistration(dets, now) {
+    if (this.players.length >= CONFIG.MAX_PLAYERS) { this.candidate = null; return; }
+    const raising = dets.find((d) => !d.player && d.handRaised);
+    if (!raising) { this.candidate = null; return; }
+    const c = this.candidate;
+    if (c && Math.abs(c.x - raising.cx) < 0.12) {
+      c.x = raising.cx; c.det = raising;
+      if (now - c.start >= CONFIG.REGISTER_HOLD_MS) { this.register(raising, now); this.candidate = null; }
+    } else this.candidate = { x: raising.cx, start: now, det: raising };
+  },
+  register(det, now) {
+    const id = this.players.length + 1;
+    const p = { id, color: CONFIG.COLORS[id - 1], status: "ready", type: Settings.data.defaultType, x: det.cx, y: det.cy, shoulder: det.shoulder,
+      sig: det.sig, basePose: null, baseShoulder: null, shoulderSamples: [], overCount: 0, moveRatio: null, lastSeen: now, finishTime: null };
+    resetProgress(p); this.players.push(p); det.player = p;
+    Sfx.pass();
+    UI.message(`${id}번 선수 등록`, { ms: 1500, color: p.color });
+    UI.renderPlayers(this.players, now); UI.controls(); HallOfFame.render();
+    (async () => {
+      await Voice.say(`${id}번 등록`, 1.1, 1200);
+      if (this.state !== "registration") return;
+      if (this.players.length < CONFIG.MAX_PLAYERS) this.promptNext();
+      else { UI.message("5명 등록 완료. 게임 시작을 누르세요", { ms: 3000 }); UI.foot("게임 시작 버튼을 누르면 3초 뒤 시작합니다."); Voice.say("모두 등록되었습니다. 게임을 시작하세요", 1.05, 2500); }
+    })();
+  },
+
+  // 참가자 목록의 '어린이/성인' 버튼 (게임 중에는 바꿀 수 없음)
+  toggleType(id) {
+    if (this.state === "countdown" || this.state === "playing") return;
+    const p = this.players.find((x) => x.id === id); if (!p) return;
+    p.type = p.type === "adult" ? "child" : "adult";
+    Sfx.tick();
+    UI.renderPlayers(this.players, performance.now()); HallOfFame.render();
+  },
+
+  /* ----- 리셋: 게임을 즉시 멈추고 대기 상태로 ----- */
+  reset(keepPlayers) {
+    ResetMenu.close(); Sfx.tick();
+    this.enterRegistration(keepPlayers, keepPlayers);
+    if (keepPlayers) {
+      UI.message("리셋 · 출발선으로 돌아가 주세요", { ms: 3200, color: "#ffb020" });
+      UI.foot("모두 출발선에 서면 게임 시작을 누르세요.");
+      Voice.say("다시 시작합니다. 출발선으로 돌아가 주세요", 1.05, 2500);
+    }
+  },
+
+  /* ----- 시작 ----- */
+  async start() {
+    if (this.state !== "registration" || !this.players.length) { UI.message("참가자가 없습니다", { ms: 1800, color: "#ffb020" }); return; }
+    const myToken = ++this.token;
+    this.state = "countdown"; this.candidate = null; Voice.cancel(); ResetMenu.close(); UI.controls();
+    $("startBtn").disabled = true; $("startBtn").textContent = "진행 중…";
+    UI.lockSettings(true); HallOfFame.render();
+    this.players.forEach((p) => { p.status = "alive"; p.shoulderSamples = []; p.basePose = null; p.baseShoulder = null; p.overCount = 0; p.moveRatio = null; resetProgress(p); });
+    UI.renderPlayers(this.players, performance.now());
+    Board.build(this.players); Board.show(true); Board.update(this.players, performance.now());
+    UI.phase("출발선에 서세요", "");
+    UI.foot("술래가 말하는 동안 움직이고, 돌아보면 멈추세요.");
+    Voice.say("출발선에 서세요. 3, 2, 1", 1.0, 3200);
+    for (const n of [3, 2, 1]) { if (this.token !== myToken) return; UI.message(String(n), { ms: 900, big: true }); Sfx.tick(); await wait(1000); }
+    if (this.token !== myToken) return;
+    this.players.forEach((p) => { if (p.shoulderSamples.length) p.baseShoulder = median(p.shoulderSamples); if (p.ankleSamples.length) p.baseAnkle = median(p.ankleSamples); });
+    this.state = "playing"; this.startedAt = performance.now();
+    UI.message("시작!", { ms: 1000, big: true, color: "var(--teal)" });
+    this.timerId = setInterval(() => {
+      this.timeLeft--; UI.timer(this.timeLeft);
+      if (this.timeLeft <= 10 && this.timeLeft > 0) Sfx.tick();
+      if (this.timeLeft <= 0) this.end("시간 종료");
+    }, 1000);
+    this.cycle(myToken);
+  },
+  collectBase(dets) { // 카운트다운 동안 출발선 기준값 수집
+    for (const d of dets) {
+      const p = d.player; if (!p || !p.shoulderSamples) continue;
+      p.shoulderSamples.push(d.shoulder);
+      const y = ankleY(d.lm); if (y != null) p.ankleSamples.push(y);
+    }
+  },
+
+  /* ----- 술래 사이클: 말하기(뒤돌기) → 돌아보기 → 반복 ----- */
+  async cycle(myToken) {
+    while (this.state === "playing" && this.token === myToken) {
+      const d = this.diff();
+      // 뒤돌아 말하기
+      this.phase = "speaking"; younghee.classList.remove("looking");
+      stage.classList.remove("looking"); stage.classList.add("speaking");
+      UI.phase("이동!", "go");
+      this.players.forEach((p) => { p.basePose = null; p.overCount = 0; p.moveRatio = null; });
+      const rate = rand(d.rate[0], d.rate[1]);
+      await Voice.say("무궁화 꽃이 피었습니다", rate, 2600 / rate);
+      if (this.state !== "playing" || this.token !== myToken) return;
+      // 돌아보기
+      this.phase = "looking"; this.lookEliminated = 0;
+      this.graceUntil = performance.now() + d.grace;
+      younghee.classList.add("looking"); stage.classList.remove("speaking"); stage.classList.add("looking");
+      UI.phase("멈춰!", "stop"); Sfx.turn();
+      await wait(rand(d.look[0], d.look[1]));
+      if (this.state !== "playing" || this.token !== myToken) return;
+      // 탈락 안내가 진행 중이면 끝날 때까지 기다린 뒤, 아무 말 없이 다시 뒤돈다
+      while (Voice.ok && speechSynthesis.speaking && this.token === myToken) await wait(100);
+    }
+  },
+
+  /* ----- 프레임 판정 ----- */
+  judge(dets, now) {
+    const thr = this.threshold(), d = this.diff();
+    for (const det of dets) {
+      const p = det.player; if (!p || p.status !== "alive") continue;
+      this.updateProgress(det, p);
+      if (this.checkFinish(det, p, now)) continue; // 결승 구역 안에 있는 동안은 움직임 판정 안 함
+      if (this.phase !== "looking" || now < this.graceUntil) continue;
+      if (!p.basePose) { p.basePose = det.lm; continue; }
+      const m = movement(p.basePose, det.lm);
+      p.moveRatio = m / thr;
+      if (m > thr) { if (++p.overCount >= d.frames) this.eliminate(p, now); }
+      else p.overCount = Math.max(0, p.overCount - 1);
+    }
+    // 화면에서 사라진 경우 (1.5초 이상):
+    //  - 이미 통과 거리 안이었으면 통과
+    //  - 통과 거리 1.2m 앞까지 왔다가 화면 옆(좌우 가장자리)으로 벗어났으면 통과 (카메라 가까이에선 화면 폭이 좁음)
+    //  - 화면 가운데서 사라진 경우는 다른 사람에게 가려진 것으로 보고 통과로 치지 않음
+    if (Settings.data.finish === "approach") {
+      const d0 = Settings.data.startDist;
+      for (const p of this.players) {
+        if (p.status !== "alive" || !p.baseShoulder || now - p.lastSeen <= CONFIG.LOST_FINISH_MS) continue;
+        const lastDist = d0 / (p.ratioS || p.shoulder / p.baseShoulder), pd = passDist(p);
+        const atEdge = p.x < CONFIG.EDGE_X || p.x > 1 - CONFIG.EDGE_X;
+        // 통과 시각은 마지막으로 보인 뒤 남은 거리를 초속 1m로 걸었다고 보고 추정 (명예의 전당 기록이 과하게 빨라지지 않도록)
+        if (lastDist <= pd || (atEdge && lastDist <= pd + CONFIG.LOST_MARGIN_M)) this.success(p, now, Math.min(now, p.lastSeen + Math.max(0, lastDist - pd) * 1000));
+      }
+    }
+  },
+  // 남은 거리·진행률 계산 (화면 표시용, 흔들림 완화)
+  updateProgress(det, p) {
+    if (Settings.data.finish === "line") {
+      const y = ankleY(det.lm); if (y == null) return;
+      if (p.baseAnkle == null) p.baseAnkle = y;
+      const span = CONFIG.FINISH_LINE_Y - p.baseAnkle;
+      const prog = span > 0.02 ? clamp((y - p.baseAnkle) / span, 0, 1) : 1;
+      p.prog = p.prog == null ? prog : p.prog + (prog - p.prog) * 0.35;
+      return;
+    }
+    if (!p.baseShoulder) p.baseShoulder = det.shoulder;
+    const R = finishRatio(p), d0 = Settings.data.startDist;
+    p.ratio = det.shoulder / p.baseShoulder;
+    p.ratioS = p.ratioS == null ? p.ratio : p.ratioS + (p.ratio - p.ratioS) * 0.35;
+    p.prog = progressFromRatio(p.ratioS, R);
+    p.dist = d0 / p.ratioS; // 술래(카메라)까지 거리 추정
+  },
+  // 도착 판정: 결승 조건을 연속 FINISH_CONFIRM_FRAMES 프레임 유지해야 통과
+  checkFinish(det, p, now) {
+    const inZone = Settings.data.finish === "line"
+      ? [27, 28].some((i) => vis(det.lm[i]) > 0.5 && det.lm[i].y > CONFIG.FINISH_LINE_Y)
+      : p.ratio >= finishRatio(p);
+    if (inZone) { if (++p.finishFrames >= CONFIG.FINISH_CONFIRM_FRAMES) this.success(p, now); }
+    else p.finishFrames = 0;
+    return inZone;
+  },
+  eliminate(p, now) {
+    p.status = "eliminated"; this.lookEliminated++;
+    Sfx.out();
+    UI.message(`${p.id}번, 움직였습니다`, { ms: 2200, color: "var(--pink)" });
+    Voice.say(`${p.id}번, 탈락`, 1.0, 1500);
+    UI.renderPlayers(this.players, now); Board.update(this.players, now);
+    this.checkEnd();
+  },
+  success(p, now, at = now) { // at: 실제 통과 시각 (화면 밖으로 사라진 경우 마지막으로 보인 시각)
+    p.status = "success"; p.finishTime = Math.max(0, at - this.startedAt);
+    Sfx.pass();
+    UI.message(`${p.id}번 통과!`, { ms: 2200, color: "var(--teal)" });
+    Voice.say(`${p.id}번, 통과`, 1.1, 1500);
+    UI.renderPlayers(this.players, now); Board.update(this.players, now);
+    this.checkEnd();
+  },
+  checkEnd() {
+    if (this.state === "playing" && !this.players.some((p) => p.status === "alive")) setTimeout(() => this.end("판정 완료"), 800);
+  },
+
+  /* ----- 종료 ----- */
+  end(reason) {
+    if (this.state !== "playing") return;
+    this.state = "result"; this.phase = ""; this.token++; UI.controls();
+    clearInterval(this.timerId); Voice.cancel();
+    this.players.forEach((p) => { if (p.status === "alive") p.status = "eliminated"; });
+    younghee.classList.remove("looking"); stage.classList.remove("looking", "speaking");
+    UI.phase("게임 종료", ""); UI.message(reason, { ms: 2500, color: "#ff4d4d" });
+    UI.renderPlayers(this.players, performance.now()); Board.update(this.players, performance.now());
+    const passed = this.players.filter((p) => p.status === "success").sort((a, b) => a.finishTime - b.finishTime);
+    const outs = this.players.filter((p) => p.status !== "success");
+    Voice.say(passed.length ? `게임 종료. ${passed.length}명 통과` : "게임 종료. 통과한 사람이 없습니다", 1.0, 2500);
+    $("resultTitle").textContent = reason;
+    $("resultSub").textContent = passed.length ? `${passed.length}명이 결승선을 통과했습니다.` : "아무도 통과하지 못했습니다.";
+    $("resultList").innerHTML = [
+      ...passed.map((p, i) => `<div class="rl success"><span class="rank">${i + 1}</span><span class="name" style="color:${p.color}">${p.id}번 선수 · ${TYPE_LABEL[p.type]}</span><span class="t">${fmtSec(p.finishTime)}초</span></div>`),
+      ...outs.map((p) => `<div class="rl eliminated"><span class="rank">–</span><span class="name">${p.id}번 선수 · ${TYPE_LABEL[p.type]}</span><span class="t">탈락</span></div>`),
+    ].join("");
+    // 명예의 전당: 부문(어린이·성인)별 이번 판 1등 기록 저장 (이름은 다음 화면에서 입력)
+    const winners = [];
+    for (const type of ["child", "adult"]) {
+      const best = passed.find((p) => p.type === type); // passed는 빠른 순
+      if (!best) continue;
+      const rec = HallOfFame.add({ id: `${Date.now().toString(36)}-${type}`, type, ms: Math.round(best.finishTime), name: "", playerNo: best.id,
+        at: new Date().toISOString(), diff: Settings.data.difficulty, startDist: Settings.data.startDist, passDist: Settings.data.finish === "line" ? "" : passDist(best) });
+      winners.push({ p: best, rec });
+    }
+    HallOfFame.render();
+    const tk = this.token;
+    setTimeout(async () => {
+      if (this.token !== tk || this.state !== "result") return;
+      for (const w of winners) { await HofScreen.ask(w); if (this.token !== tk || this.state !== "result") return; }
+      const box = $("resultHof");
+      box.hidden = !winners.length;
+      box.innerHTML = `<div class="hof-title">명예의 전당</div>` + winners.map((w) => `<div class="hof-cat">${TYPE_LABEL[w.rec.type]}</div>${HallOfFame.listHtml(w.rec.type, w.rec.id)}`).join("");
+      $("resultScreen").hidden = false;
+    }, 1600);
+  },
+};
+
+/* =========================================================
+   오버레이 드로잉
+   ========================================================= */
+const cv = $("overlay"), ctx = cv.getContext("2d");
+function draw(dets, now) {
+  const W = cv.width, H = cv.height; if (!W) return;
+  ctx.clearRect(0, 0, W, H);
+  const mir = Camera.mirror;
+  const X = (x) => (mir ? (1 - x) * W : x * W), Y = (y) => y * H;
+  const fontPx = Math.max(14, Math.round(W / 50));
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+  for (const det of dets) {
+    const p = det.player;
+    let color = "rgba(255,255,255,.28)", lw = Math.max(1.5, W / 640);
+    if (p) { color = p.status === "eliminated" ? "#ff2d55" : p.status === "success" ? "#00c896" : p.color; lw *= 1.8; }
+    ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.beginPath();
+    for (const [a, b] of BODY_CONNS) { const A = det.lm[a], B = det.lm[b]; if (vis(A) < 0.5 || vis(B) < 0.5) continue; ctx.moveTo(X(A.x), Y(A.y)); ctx.lineTo(X(B.x), Y(B.y)); }
+    ctx.stroke();
+    ctx.fillStyle = p ? "#fff" : "rgba(255,255,255,.4)";
+    for (const i of JOINTS) { const q = det.lm[i]; if (vis(q) < 0.5) continue; ctx.beginPath(); ctx.arc(X(q.x), Y(q.y), lw + 1, 0, Math.PI * 2); ctx.fill(); }
+    const nose = det.lm[0]; const hr = det.shoulder * W * 0.3;
+    ctx.beginPath(); ctx.arc(X(nose.x), Y(nose.y), hr, 0, Math.PI * 2); ctx.stroke();
+
+    if (p) {
+      const rp = Game.state === "playing" && p.status === "alive" ? remainParts(p) : null;
+      const label = p.status === "eliminated" ? `${p.id}번 탈락` : p.status === "success" ? `${p.id}번 통과` : rp ? `${p.id}번 · ${rp.num}${rp.unit}` : `${p.id}번`;
+      ctx.font = `800 ${fontPx}px ${getComputedStyle(document.body).fontFamily}`;
+      const tw = ctx.measureText(label).width + fontPx * 1.2, th = fontPx * 1.7;
+      const lx = X(nose.x) - tw / 2, ly = Y(nose.y) - hr - th - 6;
+      ctx.fillStyle = color; roundRect(lx, ly, tw, th, 6); ctx.fill();
+      ctx.fillStyle = p.status === "success" ? "#03291f" : "#fff"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
+      ctx.fillText(label, X(nose.x), ly + th / 2 + 1);
+      if (p.status === "alive" && Game.phase === "looking" && p.moveRatio != null) { // 움직임 게이지
+        const r = clamp(p.moveRatio, 0, 1.2), bw = tw, bh = Math.max(4, fontPx * 0.35), by = ly - bh - 4;
+        ctx.fillStyle = "rgba(0,0,0,.5)"; roundRect(lx, by, bw, bh, 3); ctx.fill();
+        ctx.fillStyle = r >= 1 ? "#ff2d55" : r > 0.6 ? "#ffb020" : "#00c896"; roundRect(lx, by, bw * (r / 1.2), bh, 3); ctx.fill();
+      }
+    }
+  }
+  // 등록 게이지
+  const c = Game.candidate;
+  if (Game.state === "registration" && c?.det) {
+    const nose = c.det.lm[0], prog = clamp((now - c.start) / CONFIG.REGISTER_HOLD_MS, 0, 1), r = c.det.shoulder * W * 0.45;
+    ctx.lineWidth = Math.max(4, W / 200); ctx.strokeStyle = "rgba(255,255,255,.25)";
+    ctx.beginPath(); ctx.arc(X(nose.x), Y(nose.y), r, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "#7db3ff"; ctx.beginPath(); ctx.arc(X(nose.x), Y(nose.y), r, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); ctx.stroke();
+    ctx.font = `800 ${fontPx}px ${getComputedStyle(document.body).fontFamily}`; ctx.fillStyle = "#7db3ff"; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText("손 유지…", X(nose.x), Y(nose.y) - r - 6);
+  }
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+/* =========================================================
+   인식 루프
+   ========================================================= */
+let running = false, lastVideoTime = -1, frameNo = 0, infMs = 0, adaptiveSkip = false, fpsT = 0, fpsN = 0, fps = 0;
+function loop() {
+  if (!running) return;
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime; frameNo++;
+    if (cv.width !== video.videoWidth || cv.height !== video.videoHeight) { cv.width = video.videoWidth; cv.height = video.videoHeight; }
+    if (!(adaptiveSkip && frameNo % 2)) { // 느린 기기: 2프레임마다 1회 추론
+      const t0 = performance.now();
+      try {
+        Detector.landmarker.detectForVideo(video, t0, (res) => onFrame(res.landmarks || [], t0));
+        infMs = infMs * 0.9 + (performance.now() - t0) * 0.1; adaptiveSkip = infMs > 60;
+        Detector.failures = 0;
+      } catch (e) {
+        if (++Detector.failures > 3) { running = false; Detector.fallbackToCPU().then(() => { running = true; loop(); }); return; }
+      }
+      fpsN++; if (t0 - fpsT > 1000) { fps = fpsN; fpsN = 0; fpsT = t0; UI.engine(`${Detector.delegate} · ${fps}fps`); }
+    }
+  }
+  requestAnimationFrame(loop);
+}
+function onFrame(list, now) {
+  const img = sampleFrame(); const dets = [];
+  for (const lm of list) {
+    if (!lm || lm.length < 33) continue;
+    const nose = lm[0], ls = lm[11], rs = lm[12];
+    if (vis(ls) < 0.3 || vis(rs) < 0.3) continue;
+    const handRaised = (vis(lm[15]) > 0.5 && lm[15].y < nose.y - 0.02) || (vis(lm[16]) > 0.5 && lm[16].y < nose.y - 0.02);
+    dets.push({ lm, cx: (ls.x + rs.x) / 2, cy: (ls.y + rs.y) / 2, shoulder: Math.max(0.02, Math.hypot(ls.x - rs.x, ls.y - rs.y)), handRaised, sig: sampleVest(lm, img), player: null });
+  }
+  Tracker.match(dets, Game.players, now);
+  if (Game.state === "registration") Game.handleRegistration(dets, now);
+  else if (Game.state === "countdown") Game.collectBase(dets);
+  else if (Game.state === "playing") Game.judge(dets, now);
+  draw(dets, now);
+  if (now - Game.lastRender > 250) { Game.lastRender = now; UI.renderPlayers(Game.players, now); }
+  if (now - Game.lastBoard > 150) { Game.lastBoard = now; Board.update(Game.players, now); }
+}
+
+/* =========================================================
+   부팅 · 이벤트
+   ========================================================= */
+let wakeLock = null;
+async function keepAwake() { try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && running) keepAwake(); });
+
+function bindSettings() {
+  const d = Settings.data;
+  d.startDist = clamp(+d.startDist || CONFIG.START_DIST, 3, 8);
+  d.passAdult = clamp(+d.passAdult || CONFIG.PASS_DIST.adult, 1, 5);
+  d.passChild = clamp(+d.passChild || CONFIG.PASS_DIST.child, 1, 5);
+  if (!TYPE_LABEL[d.defaultType]) d.defaultType = "child";
+  delete d.finishRatio; delete d.finishDist; // 이전 버전 설정 정리
+  $("difficulty").value = d.difficulty; $("timeLimit").value = String(d.time); $("finishMode").value = d.finish;
+  $("mirrorMode").value = d.mirror; $("modelSel").value = d.model; $("sens").value = d.sens; $("voiceOn").checked = d.voice;
+  $("sensVal").textContent = `${Number(d.sens).toFixed(1)}×`;
+  const updateFinishHints = () => {
+    const fix = (v) => Math.round(clamp(v, 1, d.startDist - 1) * 10) / 10; // 통과 거리는 출발선보다 1m 이상 술래 쪽
+    d.passAdult = fix(d.passAdult); d.passChild = fix(d.passChild);
+    $("startDist").value = d.startDist; $("passAdult").value = d.passAdult; $("passChild").value = d.passChild;
+    const d0 = d.startDist, pa = d.passAdult, pc = d.passChild;
+    $("distVal").textContent = `${d0.toFixed(1)}m`;
+    $("passAdultVal").textContent = `${pa.toFixed(1)}m`;
+    $("passChildVal").textContent = `${pc.toFixed(1)}m`;
+    const near = Math.min(pa, pc), viewW = 2 * near * Math.tan(33 * Math.PI / 180); // 노트북 웹캠 가로 화각 약 66° 기준
+    $("finishHint").textContent = `술래(카메라)까지 남은 거리가 성인 ${fmtM(pa)}m, 어린이 ${fmtM(pc)}m 이내가 되면 통과합니다. 출발선 ${fmtM(d0)}m 기준 이동 거리는 성인 ${fmtM(d0 - pa)}m, 어린이 ${fmtM(d0 - pc)}m입니다. 바닥에 출발선과 통과선을 이 거리에 맞춰 표시하세요.`
+      + (near <= 2.5 ? ` 술래 앞 ${fmtM(near)}m에서는 화면 폭이 약 ${viewW.toFixed(1)}m라서, 참가자가 술래 쪽으로 모이며 들어와야 끝까지 인식됩니다.` : "");
+    $("defaultType").options[0].textContent = `어린이 · 술래 앞 ${fmtM(pc)}m 안에 오면 통과`;
+    $("defaultType").options[1].textContent = `성인 · 술래 앞 ${fmtM(pa)}m 안에 오면 통과`;
+    $("finishHintMain").textContent = d.finish === "line"
+      ? "지금은 '화면 아래 결승선' 방식입니다. 발목이 초록 선을 넘으면 통과합니다."
+      : "참가자 목록에서 '어린이·성인'을 누르면 한 명씩 바꿀 수 있어요.";
+    $("approachOpts").hidden = d.finish === "line";
+    if (Game.state !== "playing") Board.update(Game.players, performance.now());
+  };
+  updateFinishHints();
+  $("startDist").oninput = (e) => { d.startDist = +e.target.value; updateFinishHints(); Settings.save(); };
+  $("passAdult").oninput = (e) => { d.passAdult = +e.target.value; updateFinishHints(); Settings.save(); };
+  $("passChild").oninput = (e) => { d.passChild = +e.target.value; updateFinishHints(); Settings.save(); };
+  $("defaultType").value = d.defaultType;
+  $("defaultType").onchange = (e) => { d.defaultType = e.target.value; Settings.save(); HallOfFame.render(); };
+  $("playerList").addEventListener("click", (e) => { const b = e.target.closest("[data-type-toggle]"); if (b && !b.disabled) Game.toggleType(+b.dataset.typeToggle); });
+  document.querySelectorAll("#facingSeg button").forEach((b) => b.classList.toggle("on", b.dataset.facing === d.facing));
+
+  $("difficulty").onchange = (e) => { d.difficulty = e.target.value; Settings.save(); };
+  $("timeLimit").onchange = (e) => { d.time = +e.target.value; Settings.save(); if (Game.state === "registration") { Game.timeLeft = d.time; UI.timer(d.time); } };
+  $("finishMode").onchange = (e) => { d.finish = e.target.value; Settings.save(); stage.classList.toggle("line-mode", d.finish === "line"); updateFinishHints(); };
+  $("mirrorMode").onchange = (e) => { d.mirror = e.target.value; Settings.save(); Camera.applyMirror(); };
+  $("modelSel").onchange = (e) => { d.model = e.target.value; Settings.save(); };
+  $("sens").oninput = (e) => { d.sens = +e.target.value; $("sensVal").textContent = `${d.sens.toFixed(1)}×`; Settings.save(); };
+  $("voiceOn").onchange = (e) => { d.voice = e.target.checked; Settings.save(); if (!d.voice) Voice.cancel(); };
+  document.querySelectorAll("#facingSeg button").forEach((b) => b.onclick = () => { d.facing = b.dataset.facing; Settings.save(); document.querySelectorAll("#facingSeg button").forEach((x) => x.classList.toggle("on", x === b)); });
+
+  $("camSelect").onchange = async (e) => { Camera.deviceId = e.target.value || null; try { await Camera.start(); } catch (err) { UI.message("카메라 전환 실패", { ms: 2000, color: "#ff4d4d" }); } };
+  $("flipBtn").onclick = async () => { d.facing = d.facing === "user" ? "environment" : "user"; Settings.save(); Camera.deviceId = null; try { await Camera.start(); } catch { UI.message("이 기기에는 다른 카메라가 없습니다", { ms: 2200, color: "#ffb020" }); } };
+  $("fsBtn").onclick = () => { const el = document.documentElement; if (document.fullscreenElement) document.exitFullscreen?.(); else (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el); };
+  if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) $("fsBtn").style.display = "none";
+
+  $("fileFront").onchange = (e) => Face.set("front", e.target.files[0]);
+  $("fileBack").onchange = (e) => Face.set("back", e.target.files[0]);
+  $("faceResetBtn").onclick = () => Face.reset();
+  Face.load();
+
+  $("startBtn").onclick = () => { Voice.unlock(); Sfx.unlock(); Game.start(); };
+  $("resetBtn").onclick = () => { Voice.unlock(); Sfx.unlock(); ResetMenu.toggle(); };
+  $("rmSame").onclick = () => Game.reset(true);
+  $("rmNew").onclick = () => Game.reset(false);
+  $("rmCancel").onclick = () => ResetMenu.close();
+  $("hofForm").onsubmit = (e) => { e.preventDefault(); HofScreen.finish(true); };
+  $("hofSkip").onclick = () => HofScreen.finish(false);
+  $("hofName").addEventListener("keydown", (e) => { if (e.key === "Escape") HofScreen.finish(false); });
+  $("hofExport").onclick = () => HallOfFame.exportFile();
+  $("hofClear").onclick = () => HallOfFame.clearClick();
+  HallOfFame.load(); HallOfFame.render();
+  $("againBtn").onclick = () => { $("resultScreen").hidden = true; Game.enterRegistration(true); };
+  $("newBtn").onclick = () => { $("resultScreen").hidden = true; Game.enterRegistration(false); };
+}
+
+async function boot() {
+  const btn = $("bootBtn"), err = $("bootErr");
+  err.classList.remove("show"); btn.disabled = true;
+  Voice.init(); Sfx.init(); Voice.unlock(); Sfx.unlock();
+  try {
+    if (!navigator.mediaDevices?.getUserMedia && !navigator.webkitGetUserMedia && !navigator.getUserMedia) throw new Error("이 브라우저는 웹 카메라 기능(getUserMedia)을 지원하지 않습니다. HTTPS 주소로 열었는지 확인하고, 최신 Chrome/Safari 또는 TV 소프트웨어 업데이트 후 다시 시도하세요.");
+    btn.textContent = "카메라 연결 중…";
+    await Camera.start();
+    await Detector.init((t) => { btn.textContent = t; });
+    UI.engine(`${Detector.delegate} 가동 중`);
+    Offline.warm();
+    $("startup").hidden = true;
+    running = true; keepAwake(); loop();
+    Game.enterRegistration(false);
+  } catch (e) {
+    console.error(e);
+    const name = e?.name || "";
+    let why = e?.message || String(e);
+    if (name === "NotAllowedError") why = "카메라 권한이 거부되었습니다. 주소창의 자물쇠(또는 카메라) 아이콘에서 권한을 '허용'으로 바꾼 뒤 다시 시도하세요.";
+    else if (name === "NotFoundError") why = "카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인하세요.";
+    else if (name === "NotReadableError") why = "다른 앱이 카메라를 사용 중입니다. 해당 앱을 닫고 다시 시도하세요.";
+    else if (name === "OverconstrainedError") why = "연결된 카메라가 요청한 조건을 지원하지 않습니다. 세부 설정에서 다른 카메라를 선택하거나 다시 시도하세요.";
+    else if (/^TIMEOUT/.test(why)) why = "카메라 응답이 없습니다. TV의 카메라 앱(홈허브 → 카메라)에서 스마트캠이 켜지는지 먼저 확인하고, 브라우저에 카메라 권한 안내창이 뜨면 '허용'을 누르세요.";
+    else if (/NO_GUM/.test(why)) why = "이 브라우저는 웹 카메라 기능을 제공하지 않습니다.";
+    else if (/fetch|network|wasm|load/i.test(why)) why = "AI 엔진 파일을 내려받지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도하세요.\n(" + why + ")";
+    const diag = [
+      `앱 버전: ${APP_VERSION} / 열린 방식: ${SERVED ? "웹 주소" : "파일"}`,
+      `브라우저: ${navigator.userAgent.slice(0, 90)}`,
+      `보안 컨텍스트(HTTPS): ${window.isSecureContext ? "예" : "아니오"}`,
+      `mediaDevices: ${navigator.mediaDevices ? "있음" : "없음"} / getUserMedia: ${navigator.mediaDevices?.getUserMedia ? "있음" : (navigator.webkitGetUserMedia ? "구형" : "없음")}`,
+      ...Camera.log,
+      ...Detector.errors,
+    ].join("\n");
+    err.textContent = why + "\n\n[진단 정보]\n" + diag; err.classList.add("show");
+    btn.disabled = false; btn.textContent = "다시 시도";
+  }
+}
+window.addEventListener("error", (ev) => { const err = $("bootErr"); if (!$("startup").hidden) { err.textContent = "불러오기 오류: " + ev.message + "\n인터넷 연결과 브라우저 버전을 확인하세요."; err.classList.add("show"); } });
+
+bindSettings();
+UI.renderPlayers([], 0);
+$("appVer").textContent = `버전 ${APP_VERSION}`;
+window.__ready = true;
+$("bootBtn").onclick = boot;
+</script>
+<script>
+  // 오프라인 실행 지원: 웹 주소(https)로 열었을 때만 사용
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+</script>
+</body>
+</html>
